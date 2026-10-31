@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+storage/
+docker-compose.yml
+src/workers/
