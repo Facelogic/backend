@@ -1,8 +1,9 @@
-const path = require('node:path');
+// ESM (package.json "type": "module"). sequelize-cli require()s this file and reads its named exports as options.
+import path from 'node:path';
 
-module.exports = {
-  config: path.resolve('src', 'config', 'database.js'),
-  'models-path': path.resolve('src', 'db', 'models'),
-  'migrations-path': path.resolve('src', 'db', 'migrations'),
-  'seeders-path': path.resolve('src', 'db', 'seeders'),
-};
+const config = path.resolve('src', 'config', 'database.ts');
+const modelsPath = path.resolve('src', 'db', 'models');
+const migrationsPath = path.resolve('src', 'db', 'migrations');
+const seedersPath = path.resolve('src', 'db', 'seeders');
+
+export { config, modelsPath as 'models-path', migrationsPath as 'migrations-path', seedersPath as 'seeders-path' };

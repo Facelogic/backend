@@ -2,22 +2,25 @@
   "name": "reconofacial-backend",
   "version": "1.0.0",
   "description": "API backend ReconoFacial",
-  "main": "src/server.js",
+  "main": "src/server.ts",
+  "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:create": "node scripts/new-migration.ts",
     "db:seed": "sequelize-cli db:seed:all",
-    "worker": "node src/workers/media.worker.js",
+    "db:seed:create": "node scripts/new-seed.ts",
+    "worker": "node src/workers/media.worker.ts",
     "vercel:dev": "vercel dev",
     "deploy": "vercel deploy",
     "deploy:prod": "vercel deploy --prod",
-    "db:models": "node scripts/generate-models.js"
+    "db:models": "node scripts/generate-models.ts",
+    "typecheck": "tsc"
   },
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1160.0",
     "@aws-sdk/lib-storage": "^3.1160.0",
@@ -33,10 +36,18 @@
     "pg-hstore": "^2.3.4",
     "pgvector": "^0.3.0",
     "sequelize": "^6.37.8",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/swagger-ui-express": "^4.1.8",
     "sequelize-cli": "^6.6.5",
+    "typescript": "^7.0.2",
     "vercel": "^65.8.0"
   },
   "private": true,
@@ -47,6 +58,7 @@
     "ffmpeg-static@5.3.0": true,
     "esbuild@0.27.0": true,
     "koffi@3.3.3": true,
-    "msgpackr-extract": false
+    "msgpackr-extract": false,
+    "@scarf/scarf": false
   }
 }
