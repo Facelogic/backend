@@ -5,9 +5,10 @@ import sharp from 'sharp';
 import ffmpegStatic from 'ffmpeg-static';
 import config from '../config/index.ts';
 import { Media, sequelize } from '../db/models/index.ts';
-import type { MediaInstance } from '../db/models/media.ts';
+import type { MediaInstance } from '../interfaces/models/media.interface.ts';
 import * as storage from '../services/storage/s3.storage.ts';
-import { QUEUE_NAME, type MediaJobData } from '../services/queue/media.queue.ts';
+import { QUEUE_NAME } from '../services/queue/media.queue.ts';
+import type { MediaJobData } from '../interfaces/media.interface.ts';
 import { derivedKey } from '../helper/media.helper.ts';
 
 const { redisUrl } = config;

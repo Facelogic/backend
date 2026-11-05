@@ -5,12 +5,7 @@ import * as storage from '../../services/storage/s3.storage.ts';
 import { enqueueProcessing } from '../../services/queue/media.queue.ts';
 import HttpError from '../../utils/http-error.ts';
 import { buildKey, kindFor } from '../../helper/media.helper.ts';
-
-interface CreateUploadInput {
-  mimeType: string;
-  originalName?: string;
-  ownerId?: string;
-}
+import type { CreateUploadInput } from '../../interfaces/media.interface.ts';
 
 export async function createUpload({ mimeType, originalName, ownerId }: CreateUploadInput) {
   const kind = kindFor(mimeType);

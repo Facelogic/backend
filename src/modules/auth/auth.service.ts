@@ -3,8 +3,10 @@ import { UniqueConstraintError } from 'sequelize';
 import config from '../../config/index.ts';
 import { RoleFlag } from '../../db/models/enums.ts';
 import { Role, Session, User } from '../../db/models/index.ts';
-import type { SessionInstance } from '../../db/models/session.ts';
 import { generateToken, hashToken, isValidEmail, normalizeEmail, toPublic } from '../../helper/auth.helper.ts';
+import type { LoginInput, RegisterInput } from '../../interfaces/auth.interface.ts';
+import type { SessionInstance } from '../../interfaces/models/session.interface.ts';
+import { UserStatus } from '../../constants/user-status.ts';
 import HttpError from '../../utils/http-error.ts';
 import { hashPassword, verifyPassword } from '../../utils/password.ts';
 
@@ -13,19 +15,6 @@ const { auth } = config;
 const MIN_PASSWORD = 8;
 // Verified when the email is unknown so response time doesn't reveal which emails exist.
 const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
-
-export interface RegisterInput {
-  email?: unknown;
-  name?: unknown;
-  password?: unknown;
-  roleId?: unknown;
-  schoolId?: unknown;
-}
-
-export interface LoginInput {
-  email?: unknown;
-  password?: unknown;
-}
 
 export async function register(input: RegisterInput) {
   const email = normalizeEmail(input.email);
@@ -53,7 +42,7 @@ export async function register(input: RegisterInput) {
       name,
       roleId,
       schoolId,
-      status: 'ACTIVE',
+      status: UserStatus.ACTIVE,
       passwordHash: await hashPassword(password),
     });
     return toPublic(user);
@@ -86,7 +75,7 @@ export async function login(input: LoginInput) {
     });
     throw new HttpError(401, 'Invalid credentials');
   }
-  if (user.status !== 'ACTIVE') throw new HttpError(403, 'Account is not active');
+  if (user.status !== UserStatus.ACTIVE) throw new HttpError(403, 'Account is not active');
 
   const token = generateToken();
   const expiresAt = new Date(Date.now() + auth.sessionTtlHours * 3_600_000);
@@ -107,7 +96,7 @@ export async function validateToken(token: string) {
     await session.destroy();
     throw new HttpError(401, 'Session expired');
   }
-  if (session.user.status !== 'ACTIVE') throw new HttpError(401, 'Account is not active');
+  if (session.user.status !== UserStatus.ACTIVE) throw new HttpError(401, 'Account is not active');
 
   // Throttled so authenticated requests don't each cost a write.
   if (Date.now() - session.lastActivityAt.getTime() > 60_000) {
@@ -117,5 +106,9 @@ export async function validateToken(token: string) {
 }
 
 export async function logout(session: SessionInstance) {
-  await session.destroy();
+  try {
+    await session.destroy();
+  } catch (err) {
+    throw new HttpError(500, 'Hubo un inconveniente al cerrar sesión');
+  }
 }

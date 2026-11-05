@@ -9,6 +9,7 @@ import defineAlert from './alert.ts';
 import defineArrival from './arrival.ts';
 import defineAuditLog from './audit-log.ts';
 import defineAuthorization from './authorization.ts';
+import defineDocumentType from './document-type.ts';
 import defineFaceEnrollment from './face-enrollment.ts';
 import defineFaceParameters from './face-parameters.ts';
 import defineGuardian from './guardian.ts';
@@ -69,6 +70,7 @@ const models = {
   Role: defineRole(sequelize),
   Menu: defineMenu(sequelize),
   MenuRole: defineMenuRole(sequelize),
+  DocumentType: defineDocumentType(sequelize),
 };
 
 export type Models = typeof models;
@@ -105,5 +107,6 @@ export const {
   AuditLog,
   Role,
   Menu,
-  MenuRole
+  MenuRole,
+  DocumentType,
 } = models;

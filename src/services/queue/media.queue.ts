@@ -1,13 +1,10 @@
 import { Queue } from 'bullmq';
 import config from '../../config/index.ts';
+import type { MediaJobData } from '../../interfaces/media.interface.ts';
 
 const { redisUrl } = config;
 
 export const QUEUE_NAME = 'media-processing';
-
-export interface MediaJobData {
-  mediaId: string;
-}
 
 // Lazily created so the API still works (without background processing) when REDIS_URL is unset.
 let queue: Queue<MediaJobData> | undefined;

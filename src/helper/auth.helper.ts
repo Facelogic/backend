@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { UserInstance } from '../db/models/user.ts';
+import type { UserInstance } from '../interfaces/models/user.interface.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

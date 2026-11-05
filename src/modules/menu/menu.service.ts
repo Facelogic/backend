@@ -1,22 +1,8 @@
 import { Menu, MenuRole } from '../../db/models/index.ts';
 import HttpError from '../../utils/http-error.ts';
+import type { MenuItem } from '../../interfaces/menu.interface.ts';
 
 const PROVIDER_PREFIX = '/proveedor/';
-
-export type MenuArea = 'provider' | 'school';
-
-export interface MenuItem {
-  id: string;
-  code: string;
-  name: string;
-  title: string;
-  description: string | null;
-  path: string;
-  // Area of the frontend the page belongs to, from its path (/proveedor/... or /colegio/:slug/...).
-  area: MenuArea;
-  // Last segment of the path, what the frontend checks to allow a page ("colegios", "sin-recoger").
-  section: string;
-}
 
 function toItem(menu: InstanceType<typeof Menu>): MenuItem {
   const { id, code, name, title, description, path } = menu;

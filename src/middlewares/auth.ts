@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import * as authService from '../modules/auth/auth.service.ts';
 import type { RoleFlag } from '../db/models/enums.ts';
-import type { UserInstance } from '../db/models/user.ts';
-import type { SessionInstance } from '../db/models/session.ts';
+import type { UserInstance } from '../interfaces/models/user.interface.ts';
+import type { SessionInstance } from '../interfaces/models/session.interface.ts';
 import HttpError from '../utils/http-error.ts';
 
 declare global {

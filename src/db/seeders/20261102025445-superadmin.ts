@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { QueryInterface, QueryOptions } from 'sequelize';
+import { UserStatus } from '../../constants/user-status.ts';
 import { hashPassword } from '../../utils/password.ts';
 
 // "Role" row of the superadmin.
@@ -23,7 +24,7 @@ export async function up(queryInterface: QueryInterface) {
         email,
         name: process.env.SEED_ADMIN_NAME || 'Super Admin',
         roleId: process.env.SUPERADMIN_ROLE_ID,
-        status: 'ACTIVE',
+        status: UserStatus.ACTIVE,
         passwordHash: await hashPassword(password),
         createdAt: now,
         updatedAt: now,

@@ -1,5 +1,6 @@
 // Generates one typed Sequelize model per table (plus enums.ts) from src/db/sql/schema.sql.
-// Usage: npm run db:models   (overwrites the generated files in src/db/models; media.ts and index.ts are untouched)
+// Usage: npm run db:models   (overwrites the generated files in src/db/models and src/interfaces/models;
+// media.ts and index.ts are untouched)
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -24,6 +25,8 @@ interface Table {
 const root = path.join(import.meta.dirname, '..');
 const sqlPath = path.join(root, 'src', 'db', 'sql', 'schema.sql');
 const outDir = path.join(root, 'src', 'db', 'models');
+const ifaceDir = path.join(root, 'src', 'interfaces', 'models');
+fs.mkdirSync(ifaceDir, { recursive: true });
 const sql = fs.readFileSync(sqlPath, 'utf8');
 
 const enums: Record<string, string[]> = {};
@@ -208,17 +211,13 @@ for (const t of Object.values(tables)) {
     ? `${t.name}Instance, Omit<${t.name}Attributes, ${managed.join(' | ')}>`
     : `${t.name}Instance`;
 
-  const sequelizeTypes = ['type Model', 'type Optional', 'type Sequelize'];
-  if (navs.length) sequelizeTypes.push('type NonAttribute');
-  const body = [
-    HEADER,
-    `import { DataTypes, ${sequelizeTypes.join(', ')} } from 'sequelize';`,
-  ];
-  if (usedEnums.length) body.push(`import { ${usedEnums.join(', ')} } from './enums.ts';`);
-  if (assoc.length) body.push("import type { Models } from './index.ts';");
-  for (const r of [...related].sort()) body.push(`import type { ${r}Instance } from './${kebab(r)}.ts';`);
+  // Types go to src/interfaces/models/<name>.interface.ts; the model file keeps only the runtime definition.
+  const ifaceTypes = ['Model', ...(navs.length ? ['NonAttribute'] : []), 'Optional'];
+  const iface = [HEADER, `import type { ${ifaceTypes.join(', ')} } from 'sequelize';`];
+  if (usedEnums.length) iface.push(`import type { ${usedEnums.join(', ')} } from '../../db/models/enums.ts';`);
+  for (const r of [...related].sort()) iface.push(`import type { ${r}Instance } from './${kebab(r)}.interface.ts';`);
   // Self-references (e.g. a parent row of the same table) need the local interface, already in scope.
-  body.push(
+  iface.push(
     '',
     `export interface ${t.name}Attributes {`,
     ...fields,
@@ -229,6 +228,16 @@ for (const t of Object.values(tables)) {
     `export interface ${t.name}Instance extends Model<${t.name}Attributes, ${t.name}CreationAttributes>, ${t.name}Attributes {`,
     ...navs,
     '}',
+    '',
+  );
+  fs.writeFileSync(path.join(ifaceDir, `${kebab(t.name)}.interface.ts`), iface.join('\n'));
+
+  const modelTypes = managed.length ? `${t.name}Attributes, ${t.name}Instance` : `${t.name}Instance`;
+  const body = [HEADER, "import { DataTypes, type Sequelize } from 'sequelize';"];
+  if (usedEnums.length) body.push(`import { ${usedEnums.join(', ')} } from './enums.ts';`);
+  if (assoc.length) body.push("import type { Models } from './index.ts';");
+  body.push(`import type { ${modelTypes} } from '../../interfaces/models/${kebab(t.name)}.interface.ts';`);
+  body.push(
     '',
     `export default function define${t.name}(sequelize: Sequelize) {`,
     `  const ${t.name} = sequelize.define<${defineGeneric}>(`,

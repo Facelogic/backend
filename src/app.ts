@@ -1,14 +1,17 @@
+import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import config from './config/index.ts';
 import openapi from './docs/openapi.ts';
+import errorHandler from './middlewares/error-handler.ts';
 import authRoutes from './modules/auth/auth.routes.ts';
+import documentTypeRoutes from './modules/document-type/document-type.routes.ts';
 import mediaRoutes from './modules/media/media.routes.ts';
 import menuRoutes from './modules/menu/menu.routes.ts';
-import errorHandler from './middlewares/error-handler.ts';
+import schoolRoutes from './modules/school/school.routes.ts';
+import userRoutes from './modules/user/user.routes.ts';
 
 const app = express();
 
@@ -29,6 +32,9 @@ if (config.docs.enabled) {
 app.use('/api/auth', authRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/menus', menuRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/document-types', documentTypeRoutes);
+app.use('/api/schools', schoolRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

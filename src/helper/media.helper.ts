@@ -1,5 +1,6 @@
 import path from 'node:path';
-import type { MediaInstance, MediaKind } from '../db/models/media.ts';
+import type { MediaKind } from '../db/models/media.ts';
+import type { MediaInstance } from '../interfaces/models/media.interface.ts';
 
 const ALLOWED: Record<MediaKind, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/webp'],
