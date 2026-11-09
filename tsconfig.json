@@ -4,6 +4,9 @@
     "target": "esnext",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    // Explicit typeRoots: Vercel compiles via a temp tsconfig in /tmp that `extends` this one,
+    // and without it TS looks for @types relative to /tmp (TS2688 "Cannot find type definition file for 'node'").
+    "typeRoots": ["./node_modules/@types"],
     "types": ["node"],
     "noEmit": true,
     "allowImportingTsExtensions": true,

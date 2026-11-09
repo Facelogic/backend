@@ -3,6 +3,7 @@ import * as authService from '../modules/auth/auth.service.ts';
 import type { RoleFlag } from '../db/models/enums.ts';
 import type { UserInstance } from '../interfaces/models/user.interface.ts';
 import type { SessionInstance } from '../interfaces/models/session.interface.ts';
+import { getSessionToken } from '../helper/session-cookie.ts';
 import HttpError from '../utils/http-error.ts';
 
 declare global {
@@ -15,10 +16,10 @@ declare global {
   }
 }
 
-// Requires `Authorization: Bearer <token>`; sets req.user and req.authSession.
+// Requires the session cookie (or `Authorization: Bearer <token>`); sets req.user and req.authSession.
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
-  const [scheme, token] = (req.get('authorization') || '').split(' ');
-  if (scheme !== 'Bearer' || !token) throw new HttpError(401, 'Missing bearer token');
+  const token = getSessionToken(req);
+  if (!token) throw new HttpError(401, 'Missing session token');
 
   const { session, user } = await authService.validateToken(token);
   req.user = user;

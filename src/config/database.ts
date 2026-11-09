@@ -12,7 +12,7 @@ const base: DbConfig = {
   // Explicit module so Vercel's file tracing bundles `pg` (Sequelize requires it dynamically).
   dialectModule: pg,
   ...(db.url
-    ? { use_env_variable: 'DATABASE_URL' }
+    ? { use_env_variable: 'FACELOIGC_DATABASE_URL' }
     : { host: db.host, port: db.port, database: db.database, username: db.username, password: db.password }),
   dialectOptions: db.ssl ? { ssl: { require: true } } : {},
   logging: false,

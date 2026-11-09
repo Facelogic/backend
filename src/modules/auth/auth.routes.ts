@@ -7,7 +7,7 @@ const router = Router();
 router.post('/login', controller.login);
 // Accounts are created by staff, not self-service: the first SUPERADMIN comes from the seeder.
 router.post('/register', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.register);
-router.post('/logout', authenticate, controller.logout);
+router.post('/logout', controller.logout);
 router.get('/me', authenticate, controller.me);
 
 export default router;

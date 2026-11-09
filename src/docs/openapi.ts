@@ -31,7 +31,8 @@ const idParam = {
 
 const query = (name: string, schema: object, description: string) => ({ name, in: 'query', required: false, schema, description });
 
-const bearer = [{ bearerAuth: [] }];
+// Either the session cookie (browsers, Swagger after login) or a bearer token.
+const bearer = [{ cookieAuth: [] }, { bearerAuth: [] }];
 const unauthorized = errorResponse('No autenticado / token inválido o expirado');
 const forbidden = errorResponse('Rol sin permiso');
 
@@ -84,7 +85,9 @@ const openapi = {
     version: '1.0.0',
     description:
       'API backend ReconoFacial.\n\n' +
-      'Autenticación con `Authorization: Bearer <token>` obtenido en `POST /api/auth/login` (botón **Authorize**).\n\n' +
+      'Autenticación por cookie httpOnly `session`: `POST /api/auth/login` la crea (Set-Cookie) y `POST /api/auth/logout` la elimina. ' +
+      'Desde otro dominio, el frontend debe enviar las peticiones con credenciales (`credentials: "include"` / `withCredentials: true`). ' +
+      'También se acepta `Authorization: Bearer <token>` para clientes que no son navegador.\n\n' +
       'Las respuestas exitosas tienen la forma `{ "status": true, "data": ... }` (salvo `/health` y `/api/media`). ' +
       'Los errores devuelven `{ "error": "<mensaje>" }`.',
   },
@@ -100,7 +103,8 @@ const openapi = {
   ],
   components: {
     securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', description: 'Token opaco devuelto por /api/auth/login' },
+      cookieAuth: { type: 'apiKey', in: 'cookie', name: 'session', description: 'Cookie httpOnly creada por /api/auth/login' },
+      bearerAuth: { type: 'http', scheme: 'bearer', description: 'Token opaco de sesión (clientes que no son navegador)' },
     },
     schemas: {
       Error: {
@@ -134,7 +138,6 @@ const openapi = {
       LoginResponse: {
         type: 'object',
         properties: {
-          token: { type: 'string' },
           expiresAt: { type: 'string', format: 'date-time' },
           user: ref('PublicUser'),
         },
@@ -315,7 +318,10 @@ const openapi = {
         summary: 'Iniciar sesión',
         requestBody: { required: true, content: json('LoginRequest') },
         responses: {
-          200: ok('Sesión creada', ref('LoginResponse')),
+          200: {
+            ...ok('Sesión creada; el token va en la cookie httpOnly `session`', ref('LoginResponse')),
+            headers: { 'Set-Cookie': { schema: { type: 'string', example: 'session=abc123; Path=/; HttpOnly; Secure; SameSite=None' } } },
+          },
           400: errorResponse('Faltan email o password'),
           401: errorResponse('Credenciales inválidas'),
           403: errorResponse('Cuenta no activa'),
@@ -341,11 +347,13 @@ const openapi = {
     '/api/auth/logout': {
       post: {
         tags: ['Auth'],
-        summary: 'Cerrar la sesión actual',
+        summary: 'Cerrar la sesión actual y eliminar la cookie',
         security: bearer,
         responses: {
-          204: { description: 'Sesión cerrada satisfactoriamente (sin cuerpo)' },
-          401: unauthorized,
+          200: {
+            ...ok('Sesión cerrada; la cookie `session` se elimina (también si ya había expirado)', { type: 'string' }),
+            headers: { 'Set-Cookie': { schema: { type: 'string', example: 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT' } } },
+          },
         },
       },
     },

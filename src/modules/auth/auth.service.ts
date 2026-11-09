@@ -5,7 +5,6 @@ import { RoleFlag } from '../../db/models/enums.ts';
 import { Role, Session, User } from '../../db/models/index.ts';
 import { generateToken, hashToken, isValidEmail, normalizeEmail, toPublic } from '../../helper/auth.helper.ts';
 import type { LoginInput, RegisterInput } from '../../interfaces/auth.interface.ts';
-import type { SessionInstance } from '../../interfaces/models/session.interface.ts';
 import { UserStatus } from '../../constants/user-status.ts';
 import HttpError from '../../utils/http-error.ts';
 import { hashPassword, verifyPassword } from '../../utils/password.ts';
@@ -105,9 +104,11 @@ export async function validateToken(token: string) {
   return { session, user: session.user };
 }
 
-export async function logout(session: SessionInstance) {
+// Deletes the session behind a token, if any. Unknown or expired tokens are a no-op, so logout
+// always succeeds and the client cookie can be cleared regardless.
+export async function logout(token: string) {
   try {
-    await session.destroy();
+    await Session.destroy({ where: { tokenHash: hashToken(token) } });
   } catch (err) {
     throw new HttpError(500, 'Hubo un inconveniente al cerrar sesión');
   }

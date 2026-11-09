@@ -3,3 +3,6 @@ node_modules/
 /storage/
 *.log
 .vercel/
+
+.vercel
+.env*
