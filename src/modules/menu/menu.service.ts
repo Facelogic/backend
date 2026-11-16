@@ -20,7 +20,7 @@ function toItem(menu: InstanceType<typeof Menu>): MenuItem {
 
 // Active menu items assigned to a role through "MenuRole".
 export async function listForRole(roleId: string | null | undefined): Promise<MenuItem[]> {
-  if (!roleId) throw new HttpError(403, 'The account has no role assigned');
+  if (!roleId) throw new HttpError(403, 'La cuenta no tiene un rol asignado');
 
   const links = await MenuRole.findAll({
     where: { roleId },

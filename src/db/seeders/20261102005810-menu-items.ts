@@ -11,6 +11,7 @@ const items = [
   { code: 'P_HISTORY', name: 'provider.history', title: 'Historial', path: '/proveedor/historial', description: 'Historial de recojos y su detalle' },
   { code: 'P_STATIONS', name: 'provider.stations', title: 'Estaciones', path: '/proveedor/estaciones', description: 'Estaciones de reconocimiento' },
   { code: 'P_RECOG', name: 'provider.recognition', title: 'Reconocimiento', path: '/proveedor/reconocimiento', description: 'Reconocimiento facial' },
+  { code: 'P_USERROLE', name: 'provider.usersRoles', title: 'Roles y Usuarios', path: '/proveedor/roles-y-usuarios', description: 'Gestión de roles y usuarios' },
   // School panel
   { code: 'S_PICKUPS', name: 'school.pickups', title: 'Recojos', path: '/colegio/:slug/recojos', description: 'Recojos del día' },
   { code: 'S_UNCOLL', name: 'school.uncollected', title: 'Sin recoger', path: '/colegio/:slug/sin-recoger', description: 'Alumnos sin recoger' },

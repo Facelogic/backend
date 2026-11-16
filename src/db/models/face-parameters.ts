@@ -3,12 +3,45 @@ import { DataTypes, type Sequelize } from 'sequelize';
 import type { Models } from './index.ts';
 import type { FaceParametersAttributes, FaceParametersInstance } from '../../interfaces/models/face-parameters.interface.ts';
 
+// NUMERIC(12,4): at most 4 decimals. pg returns NUMERIC as a string, so the getter parses it back to a number.
+function decimal(field: string, allowNull = false) {
+  return {
+    type: DataTypes.DECIMAL(12, 4),
+    allowNull,
+    get(this: FaceParametersInstance) {
+      const raw = this.getDataValue(field as keyof FaceParametersAttributes) as unknown;
+      return raw === null || raw === undefined ? raw : Number(raw);
+    },
+  };
+}
+
 export default function defineFaceParameters(sequelize: Sequelize) {
   const FaceParameters = sequelize.define<FaceParametersInstance, Omit<FaceParametersAttributes, 'createdAt'>>(
     'FaceParameters',
     {
       version: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-      values: { type: DataTypes.JSONB, allowNull: false },
+      recongnitionMinimumSimilarityStudent: decimal('recongnitionMinimumSimilarityStudent'),
+      recongnitionMinimalLeadStudent: decimal('recongnitionMinimalLeadStudent'),
+      recognitionConsecutiveMatchStudent: decimal('recognitionConsecutiveMatchStudent'),
+      recongnitionMinimumAntiFraudStudent: decimal('recongnitionMinimumAntiFraudStudent'),
+      recongnitionMinimumSimilarityStaff: decimal('recongnitionMinimumSimilarityStaff'),
+      recongnitionMinimalLeadStaff: decimal('recongnitionMinimalLeadStaff'),
+      recognitionConsecutiveMatchStaff: decimal('recognitionConsecutiveMatchStaff'),
+      recongnitionMinimumAntiFraudStaff: decimal('recongnitionMinimumAntiFraudStaff'),
+      enrollHeadOn: decimal('enrollHeadOn'),
+      enrollMinimalLateral: decimal('enrollMinimalLateral'),
+      enrollMaximumLateral: decimal('enrollMaximumLateral'),
+      learningTemplatePerPerson: decimal('learningTemplatePerPerson'),
+      learningMinimumConfidence: decimal('learningMinimumConfidence'),
+      learningAdvantageOnSecondPlace: decimal('learningAdvantageOnSecondPlace'),
+      learningMinimumSimilarityThreePoses: decimal('learningMinimumSimilarityThreePoses'),
+      learningMaximumSimilarityTemplates: decimal('learningMaximumSimilarityTemplates'),
+      learningMinimumAntiFraud: decimal('learningMinimumAntiFraud'),
+      learningMaximumHeadRotation: decimal('learningMaximumHeadRotation'),
+      learningMinimumFaceSize: decimal('learningMinimumFaceSize'),
+      learningFrequencyPerPerson: decimal('learningFrequencyPerPerson'),
+      autoLearning: { type: DataTypes.BOOLEAN, defaultValue: true, allowNull: false },
+      learOnlyPersonnelRecognitions: { type: DataTypes.BOOLEAN, defaultValue: true, allowNull: false },
       createdById: DataTypes.UUID,
     },
     { tableName: 'FaceParameters', updatedAt: false },

@@ -33,6 +33,7 @@ import defineStation from './station.ts';
 import defineStudent from './student.ts';
 import defineTimeEntry from './time-entry.ts';
 import defineUser from './user.ts';
+import defineSchedule from './schedule.ts';
 
 const dbConfig = dbConfigs[config.env]!;
 
@@ -49,6 +50,7 @@ const models = {
   Station: defineStation(sequelize),
   User: defineUser(sequelize),
   Session: defineSession(sequelize),
+  Schedule: defineSchedule(sequelize),
   Invitation: defineInvitation(sequelize),
   Student: defineStudent(sequelize),
   Guardian: defineGuardian(sequelize),
@@ -70,7 +72,7 @@ const models = {
   Role: defineRole(sequelize),
   Menu: defineMenu(sequelize),
   MenuRole: defineMenuRole(sequelize),
-  DocumentType: defineDocumentType(sequelize),
+  DocumentType: defineDocumentType(sequelize)
 };
 
 export type Models = typeof models;
@@ -109,4 +111,5 @@ export const {
   Menu,
   MenuRole,
   DocumentType,
+  Schedule
 } = models;

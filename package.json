@@ -26,6 +26,7 @@
     "@aws-sdk/lib-storage": "^3.1160.0",
     "@aws-sdk/s3-request-presigner": "^3.1160.0",
     "@types/express-form-data": "^2.0.5",
+    "@vercel/blob": "^2.9.0",
     "bullmq": "^6.5.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

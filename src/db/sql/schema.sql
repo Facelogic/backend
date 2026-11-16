@@ -1,13 +1,7 @@
--- Generated from Administrador/database/esquema.sql (Spanish) — English schema, owned by the Backend.
-
--- CreateEnum
-CREATE TYPE "Role" AS ENUM ('SUPERADMIN', 'PRINCIPAL', 'COORDINATOR', 'SECRETARY', 'GATEKEEPER');
-
--- CreateEnum
-CREATE TYPE "AccountStatus" AS ENUM ('INVITED', 'ACTIVE', 'DISABLED');
-
--- CreateEnum
-CREATE TYPE "RegistrationStatus" AS ENUM ('DRAFT', 'COMPLETE');
+-- CURRENT schema: schema.initial.sql + every migration in src/db/migrations, as plain DDL.
+-- Source for `npm run db:models` (scripts/generate-models.ts). It is NOT executed by the migrations:
+-- when you add a migration, apply the same change here and regenerate the models.
+-- English schema, owned by the Backend (originally from Administrador/database/esquema.sql).
 
 -- CreateEnum
 CREATE TYPE "PhotoServiceStatus" AS ENUM ('PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE');
@@ -54,6 +48,12 @@ CREATE TYPE "CodeIssuer" AS ENUM ('PRIMARY_GUARDIANS', 'ALL_GUARDIANS');
 -- CreateEnum
 CREATE TYPE "ReportType" AS ENUM ('ATTENDANCE', 'PICKUPS');
 
+-- CreateEnum (Sequelize-managed, media table)
+CREATE TYPE "enum_media_kind" AS ENUM ('image', 'video');
+
+-- CreateEnum (Sequelize-managed, media table)
+CREATE TYPE "enum_media_status" AS ENUM ('pending', 'uploaded', 'processing', 'ready', 'failed');
+
 -- CreateTable
 CREATE TABLE "School" (
     "id" UUID NOT NULL,
@@ -65,14 +65,14 @@ CREATE TABLE "School" (
     "region" VARCHAR(60) NOT NULL,
     "province" VARCHAR(60) NOT NULL,
     "district" VARCHAR(60) NOT NULL,
-    "principalName" VARCHAR(120),
-    "registrationStatus" "RegistrationStatus" NOT NULL DEFAULT 'DRAFT',
+    "phone" VARCHAR(15),
     "photoService" "PhotoServiceStatus" NOT NULL DEFAULT 'PENDING',
     "photoServiceSince" TIMESTAMPTZ(3),
     "photoServiceCancelledAt" TIMESTAMPTZ(3),
     "photoServiceNote" VARCHAR(160),
     "appPublishedAt" TIMESTAMPTZ(3),
     "contractSignedAt" TIMESTAMPTZ(3),
+    "status" SMALLINT NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ(3) NOT NULL,
 
@@ -125,6 +125,7 @@ CREATE TABLE "Station" (
     "version" VARCHAR(20),
     "serialNumber" VARCHAR(60),
     "lastSyncAt" TIMESTAMPTZ(3),
+    "status" SMALLINT NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Station_pkey" PRIMARY KEY ("id")
@@ -133,11 +134,15 @@ CREATE TABLE "Station" (
 -- CreateTable
 CREATE TABLE "User" (
     "id" UUID NOT NULL,
+    "documentTypeId" UUID,
+    "document" VARCHAR(12),
     "email" VARCHAR(160) NOT NULL,
     "name" VARCHAR(120) NOT NULL,
-    "role" "Role" NOT NULL,
+    "phone" VARCHAR(15),
+    "position" VARCHAR(80),
+    "roleId" UUID NOT NULL,
     "schoolId" UUID,
-    "status" "AccountStatus" NOT NULL DEFAULT 'INVITED',
+    "status" SMALLINT NOT NULL DEFAULT 2,
     "passwordHash" VARCHAR(200),
     "pinHash" VARCHAR(200),
     "requireTwoFactor" BOOLEAN NOT NULL DEFAULT false,
@@ -419,7 +424,28 @@ CREATE TABLE "PickupCode" (
 -- CreateTable
 CREATE TABLE "FaceParameters" (
     "version" SERIAL NOT NULL,
-    "values" JSONB NOT NULL,
+    "recongnitionMinimumSimilarityStudent" NUMERIC(12,4) NOT NULL,
+    "recongnitionMinimalLeadStudent" NUMERIC(12,4) NOT NULL,
+    "recognitionConsecutiveMatchStudent" NUMERIC(12,4) NOT NULL,
+    "recongnitionMinimumAntiFraudStudent" NUMERIC(12,4) NOT NULL,
+    "recongnitionMinimumSimilarityStaff" NUMERIC(12,4) NOT NULL,
+    "recongnitionMinimalLeadStaff" NUMERIC(12,4) NOT NULL,
+    "recognitionConsecutiveMatchStaff" NUMERIC(12,4) NOT NULL,
+    "recongnitionMinimumAntiFraudStaff" NUMERIC(12,4) NOT NULL,
+    "enrollHeadOn" NUMERIC(12,4) NOT NULL,
+    "enrollMinimalLateral" NUMERIC(12,4) NOT NULL,
+    "enrollMaximumLateral" NUMERIC(12,4) NOT NULL,
+    "learningTemplatePerPerson" NUMERIC(12,4) NOT NULL,
+    "learningMinimumConfidence" NUMERIC(12,4) NOT NULL,
+    "learningAdvantageOnSecondPlace" NUMERIC(12,4) NOT NULL,
+    "learningMinimumSimilarityThreePoses" NUMERIC(12,4) NOT NULL,
+    "learningMaximumSimilarityTemplates" NUMERIC(12,4) NOT NULL,
+    "learningMinimumAntiFraud" NUMERIC(12,4) NOT NULL,
+    "learningMaximumHeadRotation" NUMERIC(12,4) NOT NULL,
+    "learningMinimumFaceSize" NUMERIC(12,4) NOT NULL,
+    "learningFrequencyPerPerson" NUMERIC(12,4) NOT NULL,
+    "autoLearning" BOOLEAN NOT NULL DEFAULT true,
+    "learOnlyPersonnelRecognitions" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdById" UUID,
 
@@ -448,6 +474,95 @@ CREATE TABLE "AuditLog" (
     "detail" JSONB,
 
     CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261101043004-Add_role_table)
+CREATE TABLE "Role" (
+    "id" UUID NOT NULL,
+    "name" VARCHAR(120) NOT NULL,
+    "code" VARCHAR(10) NOT NULL,
+    "status" SMALLINT NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261101050450-Add-menu-logic-tables)
+CREATE TABLE "Menu" (
+    "id" UUID NOT NULL,
+    "name" VARCHAR(120) NOT NULL,
+    "code" VARCHAR(10) NOT NULL,
+    "title" VARCHAR(60) NOT NULL,
+    "description" VARCHAR(120),
+    "path" VARCHAR(120) NOT NULL,
+    "status" SMALLINT NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "Menu_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261101050450-Add-menu-logic-tables; menuId/roleId have no FK constraints)
+CREATE TABLE "MenuRole" (
+    "id" UUID NOT NULL,
+    "menuId" UUID NOT NULL,
+    "roleId" UUID NOT NULL,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "MenuRole_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261105040451-add-document-type-table)
+CREATE TABLE "DocumentType" (
+    "id" UUID NOT NULL,
+    "name" VARCHAR(60) NOT NULL,
+    "size" SMALLINT NOT NULL,
+    "description" VARCHAR(255),
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "DocumentType_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261110000000-create-schedule-table)
+CREATE TABLE "Schedule" (
+    "id" UUID NOT NULL,
+    "schoolId" UUID NOT NULL,
+    "level" VARCHAR(10) NOT NULL,
+    "startTime" TIME NOT NULL,
+    "endTime" TIME NOT NULL,
+    "status" SMALLINT NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "Schedule_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261029000000-create-media, 20261115000000, 20261115000001; snake_case, hand-written model media.ts)
+CREATE TABLE "media" (
+    "id" UUID NOT NULL,
+    "kind" "enum_media_kind" NOT NULL,
+    "status" "enum_media_status" NOT NULL DEFAULT 'pending',
+    "bucket" VARCHAR(255) NOT NULL,
+    "storage_key" VARCHAR(512) NOT NULL,
+    "original_name" VARCHAR(255),
+    "mime_type" VARCHAR(127) NOT NULL,
+    "size_bytes" BIGINT,
+    "checksum_sha256" VARCHAR(64),
+    "width" INTEGER,
+    "height" INTEGER,
+    "duration_ms" INTEGER,
+    "variants" JSONB NOT NULL DEFAULT '{}',
+    "owner_id" UUID NOT NULL,
+    "school_id" UUID NOT NULL,
+    "station_id" UUID,
+    "created_at" TIMESTAMPTZ NOT NULL,
+    "updated_at" TIMESTAMPTZ NOT NULL,
+    "deleted_at" TIMESTAMPTZ,
+
+    CONSTRAINT "media_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -566,6 +681,60 @@ CREATE INDEX "AuditLog_schoolId_occurredAt_idx" ON "AuditLog"("schoolId", "occur
 
 -- CreateIndex
 CREATE INDEX "AuditLog_action_occurredAt_idx" ON "AuditLog"("action", "occurredAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_document_key" ON "User"("document");
+
+-- CreateIndex
+CREATE INDEX "User_roleId_idx" ON "User"("roleId");
+
+-- CreateIndex
+CREATE INDEX "User_documentTypeId_idx" ON "User"("documentTypeId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Role_code_key" ON "Role"("code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DocumentType_name_key" ON "DocumentType"("name");
+
+-- CreateIndex
+CREATE INDEX "Schedule_schoolId_idx" ON "Schedule"("schoolId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "media_storage_key_key" ON "media"("storage_key");
+
+-- CreateIndex
+CREATE INDEX "media_owner_id_created_at" ON "media"("owner_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "media_school_id_created_at" ON "media"("school_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "media_station_id_created_at" ON "media"("station_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "media_status" ON "media"("status");
+
+-- AddCheck
+ALTER TABLE "School" ADD CONSTRAINT "School_status_check" CHECK ("status" IN (0, 1));
+
+-- AddCheck
+ALTER TABLE "Station" ADD CONSTRAINT "Station_status_check" CHECK ("status" IN (0, 1));
+
+-- AddCheck
+ALTER TABLE "User" ADD CONSTRAINT "User_status_check" CHECK ("status" IN (0, 1, 2));
+
+-- AddCheck
+ALTER TABLE "DocumentType" ADD CONSTRAINT "DocumentType_size_check" CHECK ("size" > 0);
+
+-- AddCheck
+ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_level_check" CHECK ("level" IN ('PRESCHOOL', 'PRIMARY', 'SECONDARY'));
+
+-- AddCheck
+ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_status_check" CHECK ("status" IN (0, 1));
+
+-- AddCheck
+ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_time_check" CHECK ("startTime" < "endTime");
 
 -- AddForeignKey
 ALTER TABLE "LevelSchedule" ADD CONSTRAINT "LevelSchedule_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -704,3 +873,21 @@ ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userI
 
 -- AddForeignKey
 ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_documentTypeId_fkey" FOREIGN KEY ("documentTypeId") REFERENCES "DocumentType"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "media" ADD CONSTRAINT "media_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "media" ADD CONSTRAINT "media_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "media" ADD CONSTRAINT "media_station_id_fkey" FOREIGN KEY ("station_id") REFERENCES "Station"("id") ON DELETE SET NULL ON UPDATE CASCADE;

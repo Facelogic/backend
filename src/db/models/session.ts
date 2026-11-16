@@ -9,7 +9,7 @@ export default function defineSession(sequelize: Sequelize) {
     {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
       userId: { type: DataTypes.UUID, allowNull: false },
-      tokenHash: { type: DataTypes.CHAR(64), allowNull: false },
+      tokenHash: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
       expiresAt: { type: DataTypes.DATE(3), allowNull: false },
       lastActivityAt: { type: DataTypes.DATE(3), defaultValue: DataTypes.NOW, allowNull: false },
     },

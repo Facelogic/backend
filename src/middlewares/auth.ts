@@ -19,7 +19,7 @@ declare global {
 // Requires the session cookie (or `Authorization: Bearer <token>`); sets req.user and req.authSession.
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = getSessionToken(req);
-  if (!token) throw new HttpError(401, 'Missing session token');
+  if (!token) throw new HttpError(401, 'Falta el token de sesión');
 
   const { session, user } = await authService.validateToken(token);
   req.user = user;
@@ -32,7 +32,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 export function authorize(...roles: RoleFlag[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const code = req.user?.role?.code as RoleFlag | undefined;
-    if (!code || !roles.includes(code)) throw new HttpError(403, 'Forbidden');
+    if (!code || !roles.includes(code)) throw new HttpError(403, 'Acceso denegado');
     next();
   };
 }

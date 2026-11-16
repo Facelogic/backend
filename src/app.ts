@@ -15,6 +15,12 @@ import mediaRoutes from './modules/media/media.routes.ts';
 import menuRoutes from './modules/menu/menu.routes.ts';
 import schoolRoutes from './modules/school/school.routes.ts';
 import userRoutes from './modules/user/user.routes.ts';
+import scheduleRoutes from './modules/schedule/schedule.routes.ts';
+import roleRoutes from './modules/role/role.routes.ts';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.ts';
+import stationRoutes from './modules/station/station.routes.ts';
+import faceParametersRoutes from './modules/face-parameters/face-parameters.routes.ts';
+import schoolSettingsRoutes from './modules/school-settings/school-settings.routes.ts';
 
 const app = express();
 const options = {
@@ -57,9 +63,15 @@ app.use('/api/menus', menuRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/document-types', documentTypeRoutes);
 app.use('/api/schools', schoolRoutes);
+app.use('/api/schedules', scheduleRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/stations', stationRoutes);
+app.use('/api/face-parameters', faceParametersRoutes);
+app.use('/api/school-settings', schoolSettingsRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not Found' });
+  res.status(404).json({ error: 'Recurso no encontrado' });
 });
 app.use(errorHandler);
 

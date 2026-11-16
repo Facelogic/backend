@@ -16,7 +16,7 @@ export default function defineStudent(sequelize: Sequelize) {
       level: { type: DataTypes.ENUM(...Level), allowNull: false },
       grade: { type: DataTypes.STRING(20), allowNull: false },
       section: DataTypes.STRING(10),
-      badgeCode: { type: DataTypes.STRING(30), allowNull: false },
+      badgeCode: { type: DataTypes.STRING(30), allowNull: false, unique: true },
       badgeVersion: { type: DataTypes.INTEGER, defaultValue: 1, allowNull: false },
       canLeaveAlone: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
       active: { type: DataTypes.BOOLEAN, defaultValue: true, allowNull: false },

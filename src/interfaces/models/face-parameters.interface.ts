@@ -4,12 +4,33 @@ import type { UserInstance } from './user.interface.ts';
 
 export interface FaceParametersAttributes {
   version: number;
-  values: unknown;
+  recongnitionMinimumSimilarityStudent: number;
+  recongnitionMinimalLeadStudent: number;
+  recognitionConsecutiveMatchStudent: number;
+  recongnitionMinimumAntiFraudStudent: number;
+  recongnitionMinimumSimilarityStaff: number;
+  recongnitionMinimalLeadStaff: number;
+  recognitionConsecutiveMatchStaff: number;
+  recongnitionMinimumAntiFraudStaff: number;
+  enrollHeadOn: number;
+  enrollMinimalLateral: number;
+  enrollMaximumLateral: number;
+  learningTemplatePerPerson: number;
+  learningMinimumConfidence: number;
+  learningAdvantageOnSecondPlace: number;
+  learningMinimumSimilarityThreePoses: number;
+  learningMaximumSimilarityTemplates: number;
+  learningMinimumAntiFraud: number;
+  learningMaximumHeadRotation: number;
+  learningMinimumFaceSize: number;
+  learningFrequencyPerPerson: number;
+  autoLearning: boolean;
+  learOnlyPersonnelRecognitions: boolean;
   createdAt: Date;
   createdById: string | null;
 }
 
-export type FaceParametersCreationAttributes = Optional<FaceParametersAttributes, 'version' | 'createdAt' | 'createdById'>;
+export type FaceParametersCreationAttributes = Optional<FaceParametersAttributes, 'version' | 'autoLearning' | 'learOnlyPersonnelRecognitions' | 'createdAt' | 'createdById'>;
 
 export interface FaceParametersInstance extends Model<FaceParametersAttributes, FaceParametersCreationAttributes>, FaceParametersAttributes {
   createdBy?: NonAttribute<UserInstance>;

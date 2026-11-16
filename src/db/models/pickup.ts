@@ -9,7 +9,7 @@ export default function definePickup(sequelize: Sequelize) {
     'Pickup',
     {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
-      code: { type: DataTypes.STRING(24), allowNull: false },
+      code: { type: DataTypes.STRING(24), allowNull: false, unique: true },
       schoolId: { type: DataTypes.UUID, allowNull: false },
       stationId: DataTypes.UUID,
       studentId: { type: DataTypes.UUID, allowNull: false },
@@ -23,7 +23,7 @@ export default function definePickup(sequelize: Sequelize) {
       manualReason: DataTypes.STRING(160),
       noPhotoReason: DataTypes.STRING(160),
       photosExpireAt: DataTypes.DATE(3),
-      pickupCodeId: DataTypes.UUID,
+      pickupCodeId: { type: DataTypes.UUID, unique: true },
     },
     { tableName: 'Pickup', updatedAt: false },
   );

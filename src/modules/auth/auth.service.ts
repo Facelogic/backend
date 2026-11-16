@@ -22,18 +22,18 @@ export async function register(input: RegisterInput) {
   const { password } = input;
   let schoolId = typeof input.schoolId === 'string' ? input.schoolId : null;
 
-  if (!isValidEmail(email)) throw new HttpError(400, 'Invalid email');
-  if (!name) throw new HttpError(400, 'Name is required');
+  if (!isValidEmail(email)) throw new HttpError(400, 'Correo electrónico inválido');
+  if (!name) throw new HttpError(400, 'El nombre es obligatorio');
   if (typeof password !== 'string' || password.length < MIN_PASSWORD) {
-    throw new HttpError(400, `Password must be at least ${MIN_PASSWORD} characters`);
+    throw new HttpError(400, `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`);
   }
 
   const role = await Role.findByPk(roleId);
 
-  if (!role) throw new HttpError(400, 'roleId should be a valid role');
+  if (!role) throw new HttpError(400, 'roleId debe ser un rol válido');
 
   if (role?.code === RoleFlag[0]) schoolId = null;
-  else if (!schoolId) throw new HttpError(400, 'schoolId is required for this role');
+  else if (!schoolId) throw new HttpError(400, 'schoolId es obligatorio para este rol');
 
   try {
     const user = await User.create({
@@ -46,7 +46,7 @@ export async function register(input: RegisterInput) {
     });
     return toPublic(user);
   } catch (err) {
-    if (err instanceof UniqueConstraintError) throw new HttpError(409, 'Email already registered');
+    if (err instanceof UniqueConstraintError) throw new HttpError(409, 'El correo electrónico ya está registrado');
     throw err;
   }
 }
@@ -54,15 +54,15 @@ export async function register(input: RegisterInput) {
 export async function login(input: LoginInput) {
   const email = normalizeEmail(input.email);
   const { password } = input;
-  if (!email || typeof password !== 'string') throw new HttpError(400, 'Email and password are required');
+  if (!email || typeof password !== 'string') throw new HttpError(400, 'El correo electrónico y la contraseña son obligatorios');
 
   const user = await User.findOne({ where: { email }, include: [{ model: Role, as: 'role' }] });
   if (!user?.passwordHash) {
     await verifyPassword(password, await DUMMY_HASH);
-    throw new HttpError(401, 'Invalid credentials');
+    throw new HttpError(401, 'Credenciales inválidas');
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    throw new HttpError(423, 'Account temporarily locked, try again later');
+    throw new HttpError(423, 'Cuenta bloqueada temporalmente, inténtalo más tarde');
   }
 
   if (!(await verifyPassword(password, user.passwordHash))) {
@@ -72,9 +72,9 @@ export async function login(input: LoginInput) {
       failedAttempts: locked ? 0 : failedAttempts,
       lockedUntil: locked ? new Date(Date.now() + auth.lockMinutes * 60_000) : user.lockedUntil,
     });
-    throw new HttpError(401, 'Invalid credentials');
+    throw new HttpError(401, 'Credenciales inválidas');
   }
-  if (user.status !== UserStatus.ACTIVE) throw new HttpError(403, 'Account is not active');
+  if (user.status !== UserStatus.ACTIVE) throw new HttpError(403, 'La cuenta no está activa');
 
   const token = generateToken();
   const expiresAt = new Date(Date.now() + auth.sessionTtlHours * 3_600_000);
@@ -90,12 +90,12 @@ export async function validateToken(token: string) {
     where: { tokenHash: hashToken(token) },
     include: [{ model: User, as: 'user', include: [{ model: Role, as: 'role' }] }],
   });
-  if (!session?.user) throw new HttpError(401, 'Invalid token');
+  if (!session?.user) throw new HttpError(401, 'Token inválido');
   if (session.expiresAt <= new Date()) {
     await session.destroy();
-    throw new HttpError(401, 'Session expired');
+    throw new HttpError(401, 'La sesión ha expirado');
   }
-  if (session.user.status !== UserStatus.ACTIVE) throw new HttpError(401, 'Account is not active');
+  if (session.user.status !== UserStatus.ACTIVE) throw new HttpError(401, 'La cuenta no está activa');
 
   // Throttled so authenticated requests don't each cost a write.
   if (Date.now() - session.lastActivityAt.getTime() > 60_000) {

@@ -1,6 +1,12 @@
 // OpenAPI 3 spec served by Swagger UI at /api/docs (raw JSON at /api/docs.json).
 // Keep it in sync with the routes in src/modules/*/*.routes.ts.
 
+import {
+  APP_ADMIN_SETTINGS_FIELDS,
+  SUPERADMIN_SETTINGS_FIELDS,
+  type SchoolSettingsField,
+} from '../interfaces/school-settings.interface.ts';
+
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
 const errorResponse = (description: string) => ({
@@ -39,6 +45,109 @@ const forbidden = errorResponse('Rol sin permiso');
 const nullableString = (extra: object = {}) => ({ type: 'string', nullable: true, ...extra });
 const nullableDate = { type: 'string', format: 'date-time', nullable: true };
 
+const FACE_NUMERIC_FIELDS = [
+  'recongnitionMinimumSimilarityStudent',
+  'recongnitionMinimalLeadStudent',
+  'recognitionConsecutiveMatchStudent',
+  'recongnitionMinimumAntiFraudStudent',
+  'recongnitionMinimumSimilarityStaff',
+  'recongnitionMinimalLeadStaff',
+  'recognitionConsecutiveMatchStaff',
+  'recongnitionMinimumAntiFraudStaff',
+  'enrollHeadOn',
+  'enrollMinimalLateral',
+  'enrollMaximumLateral',
+  'learningTemplatePerPerson',
+  'learningMinimumConfidence',
+  'learningAdvantageOnSecondPlace',
+  'learningMinimumSimilarityThreePoses',
+  'learningMaximumSimilarityTemplates',
+  'learningMinimumAntiFraud',
+  'learningMaximumHeadRotation',
+  'learningMinimumFaceSize',
+  'learningFrequencyPerPerson',
+];
+const paginationParams = [
+  query('page', { type: 'integer', minimum: 1, default: 1 }, 'Número de página (desde 1)'),
+  query('pageSize', { type: 'integer', minimum: 1, maximum: 100, default: 10 }, 'Elementos por página (máximo 100)'),
+];
+// Paginated lists answer `{ status: true, data: [...], pagination: {...} }`.
+const okPage = (description: string, item: object) => ({
+  description,
+  content: {
+    'application/json': {
+      schema: {
+        type: 'object',
+        required: ['status', 'data', 'pagination'],
+        properties: {
+          status: { type: 'boolean', example: true },
+          data: { type: 'array', items: item },
+          pagination: ref('Pagination'),
+        },
+      },
+    },
+  },
+});
+const schoolIdParam = { name: 'schoolId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } };
+const intProp = (min: number, def: number, description: string) => ({ type: 'integer', minimum: min, default: def, description });
+const boolProp = (description: string) => ({ type: 'boolean', default: true, description });
+// Every editable setting; which role can change each one comes from SUPERADMIN_SETTINGS_FIELDS and
+// APP_ADMIN_SETTINGS_FIELDS (src/interfaces/school-settings.interface.ts), so the docs follow the code.
+const settingsProps: Record<SchoolSettingsField, object> = {
+  photoOnlyWithConsent: boolProp('Solo se envían/guardan fotos de apoderados con consentimiento firmado'),
+  photoRetentionDays: intProp(1, 30, 'Días que se conservan las fotos de los retiros'),
+  flagUnopened: boolProp('Marcar notificaciones no abiertas'),
+  unopenedMinutes: intProp(1, 10, 'Minutos sin abrir tras los que se marca una notificación'),
+  disputeButtonEnabled: boolProp('Botón para que el apoderado dispute un retiro'),
+  reminderEnabled: boolProp('Enviar recordatorios'),
+  reminderMinutes: intProp(1, 30, 'Minutos tras la salida para el primer recordatorio'),
+  reminderRepeats: intProp(0, 2, 'Repeticiones del recordatorio'),
+  reminderIntervalMin: intProp(1, 30, 'Minutos entre repeticiones'),
+  codeEnabled: boolProp('Permitir códigos de retiro para terceros'),
+  codeValidity: { type: 'string', enum: ['UNTIL_18H', 'FOUR_HOURS'], default: 'UNTIL_18H', description: 'Vigencia del código' },
+  codesPerStudentPerDay: intProp(1, 1, 'Códigos por alumno por día'),
+  codeIssuer: {
+    type: 'string',
+    enum: ['PRIMARY_GUARDIANS', 'ALL_GUARDIANS'],
+    default: 'PRIMARY_GUARDIANS',
+    description: 'Quién puede generar códigos',
+  },
+  attemptsBeforeLock: intProp(1, 3, 'Intentos fallidos antes de bloquear el código'),
+  validateFaceOnArrival: boolProp('Validar rostro en la llegada'),
+  notifyArrival: boolProp('Notificar la llegada al apoderado'),
+  allowNationalId: boolProp('Permitir DNI como método alternativo'),
+  notificationShowsValidation: boolProp('La notificación muestra el método de validación'),
+  notificationShowsPhoto: boolProp('La notificación incluye la foto'),
+};
+const pickSettings = (fields: readonly SchoolSettingsField[]) =>
+  Object.fromEntries(fields.map((field) => [field, settingsProps[field]]));
+const superadminSettingsProps = pickSettings(SUPERADMIN_SETTINGS_FIELDS);
+const appAdminSettingsProps = pickSettings(APP_ADMIN_SETTINGS_FIELDS);
+// Fields one role can change and the other can't (both can change the ones in both lists).
+const superadminOnlySettings = SUPERADMIN_SETTINGS_FIELDS.filter((f) => !(APP_ADMIN_SETTINGS_FIELDS as readonly string[]).includes(f));
+const appAdminOnlySettings = APP_ADMIN_SETTINGS_FIELDS.filter((f) => !(SUPERADMIN_SETTINGS_FIELDS as readonly string[]).includes(f));
+const sharedSettings = SUPERADMIN_SETTINGS_FIELDS.filter((f) => (APP_ADMIN_SETTINGS_FIELDS as readonly string[]).includes(f));
+const codeList = (fields: readonly string[]) => (fields.length ? fields.map((f) => `\`${f}\``).join(', ') : 'ninguno');
+const versionParam = { name: 'version', in: 'path', required: true, schema: { type: 'integer', minimum: 1 } };
+const faceParameterProps = {
+  ...Object.fromEntries(FACE_NUMERIC_FIELDS.map((field) => [field, { type: 'number', example: 0.75, description: 'NUMERIC(12,4)' }])),
+  autoLearning: { type: 'boolean', default: true },
+  learOnlyPersonnelRecognitions: { type: 'boolean', default: true },
+};
+
+const timePattern = String.raw`^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$`;
+
+const scheduleFields = {
+  level: { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY'] },
+  startTime: {
+    type: 'string',
+    pattern: timePattern,
+    example: '07:45',
+    description: 'HH:MM o HH:MM:SS (24 h). Debe ser anterior a endTime.',
+  },
+  endTime: { type: 'string', pattern: timePattern, example: '13:30', description: 'HH:MM o HH:MM:SS (24 h)' },
+};
+
 const schoolFields = {
   slug: {
     type: 'string',
@@ -54,14 +163,17 @@ const schoolFields = {
   region: { type: 'string', maxLength: 60, example: 'Lima' },
   province: { type: 'string', maxLength: 60, example: 'Lima' },
   district: { type: 'string', maxLength: 60, example: 'Miraflores' },
-  principalName: nullableString({ maxLength: 120 }),
-  registrationStatus: { type: 'string', enum: ['DRAFT', 'COMPLETE'] },
-  photoService: { type: 'string', enum: ['PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE'] },
-  photoServiceSince: nullableDate,
-  photoServiceCancelledAt: nullableDate,
-  photoServiceNote: nullableString({ maxLength: 160 }),
-  appPublishedAt: nullableDate,
-  contractSignedAt: nullableDate,
+  phone: nullableString({
+    maxLength: 15,
+    example: '+5114567890',
+    description: 'Dígitos con "+" opcional al inicio (6–14 dígitos). Se eliminan espacios, guiones y paréntesis. null o "" lo borra.',
+  }),
+  // photoService: { type: 'string', enum: ['PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE'] },
+  // photoServiceSince: nullableDate,
+  // photoServiceCancelledAt: nullableDate,
+  // photoServiceNote: nullableString({ maxLength: 160 }),
+  // appPublishedAt: nullableDate,
+  // contractSignedAt: nullableDate,
 };
 
 const userWritableFields = {
@@ -72,6 +184,7 @@ const userWritableFields = {
     example: '+51987654321',
     description: 'Dígitos con "+" opcional al inicio (6–14 dígitos). Se eliminan espacios, guiones y paréntesis. null o "" lo borra.',
   }),
+  position: nullableString({ maxLength: 80, example: 'Coordinadora', description: 'Cargo (opcional). null o "" lo borra.' }),
   document: nullableString({ description: 'Número de documento; su longitud debe coincidir con el `size` del tipo de documento' }),
   documentTypeId: { type: 'string', format: 'uuid', nullable: true },
   roleId: { type: 'string', format: 'uuid', description: 'No puede ser el rol SUPERADMIN' },
@@ -89,17 +202,38 @@ const openapi = {
       'Desde otro dominio, el frontend debe enviar las peticiones con credenciales (`credentials: "include"` / `withCredentials: true`). ' +
       'También se acepta `Authorization: Bearer <token>` para clientes que no son navegador.\n\n' +
       'Las respuestas exitosas tienen la forma `{ "status": true, "data": ... }` (salvo `/health` y `/api/media`). ' +
-      'Los errores devuelven `{ "error": "<mensaje>" }`.',
+      'Los errores devuelven `{ "error": "<mensaje>" }`, con el mensaje siempre en español.\n\n' +
+      'Errores generales (en cualquier ruta):\n' +
+      '- `400` "El cuerpo de la solicitud no es un JSON válido" — body JSON mal formado.\n' +
+      '- `413` "El cuerpo de la solicitud es demasiado grande" — body por encima del límite.\n' +
+      '- `404` "Recurso no encontrado" — la ruta no existe.\n' +
+      '- `500` "Error interno del servidor" — el detalle solo se registra en el log del servidor.\n\n' +
+      'Exportación a Excel: `GET /api/schools/export`, `GET /api/stations/export` y `GET /api/user/export` devuelven ' +
+      '`{ "status": true, "data": [ ...filas ] }` sin paginar; cada fila es plana y sus claves son los encabezados de columna ' +
+      '(ver el esquema `ExportRow`), lista para `XLSX.utils.json_to_sheet(data)`.',
   },
   servers: [{ url: '/', description: 'Servidor actual' }],
   tags: [
     { name: 'Health' },
     { name: 'Auth', description: 'Sesiones y cuentas' },
-    { name: 'Users', description: 'Gestión de usuarios (SUPERADMIN / APP_ADMIN)' },
-    { name: 'Schools', description: 'Gestión de colegios (solo SUPERADMIN)' },
+    { name: 'Users', description: 'Gestión y exportación a Excel de usuarios (SUPERADMIN / APP_ADMIN)' },
+    { name: 'Schools', description: 'Gestión, cambio de estado y exportación a Excel de colegios (solo SUPERADMIN)' },
+    { name: 'Stations', description: 'Gestión, cambio de estado y exportación a Excel de estaciones (solo SUPERADMIN)' },
+    { name: 'Schedules', description: 'Horarios por nivel de cada colegio (solo SUPERADMIN)' },
+    {
+      name: 'School Settings',
+      description:
+        'Configuración de cada colegio. ' +
+        `Solo SUPERADMIN (cualquier colegio): ${codeList(superadminOnlySettings)}. ` +
+        `Solo APP_ADMIN (su colegio): ${codeList(appAdminOnlySettings)}. ` +
+        `Ambos perfiles: ${codeList(sharedSettings)}.`,
+    },
+    { name: 'Face Parameters', description: 'Parámetros de reconocimiento facial, versionados (solo SUPERADMIN)' },
     { name: 'Document Types', description: 'Catálogo de tipos de documento' },
+    { name: 'Roles', description: 'Catálogo de roles asignables' },
+    { name: 'Dashboard', description: 'Indicadores de la consola del proveedor' },
     { name: 'Menus', description: 'Menú del usuario autenticado según su rol' },
-    { name: 'Media', description: 'Subida de archivos con URL prefirmada' },
+    { name: 'Media', description: 'Archivos de cada colegio: subida directa (multipart) o con URL prefirmada' },
   ],
   components: {
     securitySchemes: {
@@ -109,7 +243,8 @@ const openapi = {
     schemas: {
       Error: {
         type: 'object',
-        properties: { error: { type: 'string', example: 'Invalid credentials' } },
+        description: 'Respuesta de error; el mensaje siempre está en español.',
+        properties: { error: { type: 'string', example: 'Credenciales inválidas' } },
         required: ['error'],
       },
 
@@ -163,25 +298,61 @@ const openapi = {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid' },
-          document: nullableString(),
-          documentType: nullableString({ example: 'DNI', description: 'Nombre del tipo de documento' }),
+          name: { type: 'string', example: 'María Pérez' },
           email: { type: 'string', format: 'email' },
-          name: { type: 'string' },
-          phone: nullableString(),
-          role: { type: 'string', enum: ['SUPERADMIN', 'APP_ADMIN', 'DOOR_STAFF'] },
+          phone: nullableString({ example: '+51987654321' }),
+          position: nullableString({ example: 'Coordinadora', description: 'Cargo' }),
+          role: { type: 'string', enum: ['APP_ADMIN', 'DOOR_STAFF'] },
           school: nullableString({ description: 'Nombre del colegio' }),
           status: { type: 'string', enum: ['DISABLED', 'ACTIVE', 'INVITED'] },
-          createdDate: { type: 'string', example: '05/11/2026', description: 'dd/mm/yyyy' },
+        },
+      },
+      UserDetail: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'María Pérez' },
+          email: { type: 'string', format: 'email' },
+          phone: nullableString({ example: '+51987654321' }),
+          document: nullableString({ example: '12345678', description: 'Número de documento' }),
+          position: nullableString({ example: 'Coordinadora', description: 'Cargo' }),
+          documentTypeId: nullableString({ format: 'uuid' }),
+          roleId: { type: 'string', format: 'uuid' },
+          role: { type: 'string', enum: ['APP_ADMIN', 'DOOR_STAFF'] },
+          schoolId: nullableString({ format: 'uuid' }),
+          school: nullableString({ description: 'Nombre del colegio' }),
+          status: { type: 'string', enum: ['DISABLED', 'ACTIVE', 'INVITED'] },
+          lastLoginAt: nullableDate,
+          createdDate: { type: 'string', example: '11/11/2026', description: 'dd/mm/yyyy' },
         },
       },
       CreateUserRequest: {
         type: 'object',
-        required: ['email', 'name', 'roleId'],
-        properties: userWritableFields,
+        required: ['name', 'email', 'documentTypeId', 'document', 'roleId', 'schoolId'],
+        properties: {
+          name: { type: 'string', maxLength: 120, example: 'María Pérez', description: 'Nombre y apellido' },
+          email: userWritableFields.email,
+          documentTypeId: { type: 'string', format: 'uuid', description: 'Tipo de documento' },
+          document: {
+            type: 'string',
+            example: '12345678',
+            description: 'Número de documento; su longitud debe coincidir con el `size` del tipo de documento. Único.',
+          },
+          phone: userWritableFields.phone,
+          position: userWritableFields.position,
+          roleId: userWritableFields.roleId,
+          schoolId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Un rol distinto de SUPERADMIN solo puede crear usuarios de su propio colegio',
+          },
+        },
       },
       UpdateUserRequest: {
         type: 'object',
-        description: 'Solo se modifican los campos enviados; null o "" borra los opcionales.',
+        description:
+          'Solo se modifican los campos enviados; null o "" borra los opcionales. Si se envía document o documentTypeId, ' +
+          'la longitud del documento se valida contra el `size` de su tipo. Para solo activar/desactivar usar PATCH /api/user/{id}/status.',
         properties: {
           ...userWritableFields,
           status: { type: 'integer', enum: [0, 1, 2], description: '0 = DISABLED, 1 = ACTIVE, 2 = INVITED' },
@@ -189,13 +360,37 @@ const openapi = {
       },
 
       // ---- Schools
+      SchoolOption: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'I.E. San Martín' },
+        },
+      },
       SchoolItem: {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid' },
           ...schoolFields,
+          // Returned by the API although they can't be sent in the requests yet (see schoolFields).
+          photoService: { type: 'string', enum: ['PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE'] },
+          photoServiceSince: nullableDate,
+          photoServiceCancelledAt: nullableDate,
+          photoServiceNote: nullableString({ maxLength: 160 }),
+          appPublishedAt: nullableDate,
+          contractSignedAt: nullableDate,
           status: { type: 'string', enum: ['INACTIVE', 'ACTIVE'] },
           createdDate: { type: 'string', example: '05/11/2026', description: 'dd/mm/yyyy' },
+          stationCount: { type: 'integer', example: 2, description: 'Cantidad de estaciones activas del colegio' },
+          totalStationCount: { type: 'integer', example: 3, description: 'Cantidad total de estaciones del colegio, activas o no' },
+          sendPhotos: { type: 'string', example: '-', description: 'Solo en GET /api/schools. Por ahora siempre "-".' },
+          consentingAdults: { type: 'integer', example: 0, description: 'Solo en GET /api/schools. Por ahora siempre 0.' },
+          lastSync: { type: 'string', example: '-', description: 'Solo en GET /api/schools. Por ahora siempre "-".' },
+          schedules: {
+            type: 'array',
+            items: ref('ScheduleItem'),
+            description: 'Solo en GET /api/schools/{id}: horarios activos ordenados por nivel.',
+          },
         },
       },
       CreateSchoolRequest: {
@@ -203,15 +398,145 @@ const openapi = {
         required: ['name', 'modularCode', 'taxId', 'region', 'province', 'district'],
         properties: {
           ...schoolFields,
-          status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+          // status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+          schedules: {
+            type: 'array',
+            description: 'Horarios del colegio; se crean con el schoolId del colegio nuevo.',
+            items: ref('SchoolScheduleInput'),
+          },
         },
       },
       UpdateSchoolRequest: {
         type: 'object',
-        description: 'Solo se modifican los campos enviados; null o "" borra los opcionales (los obligatorios no pueden vaciarse).',
+        description:
+          'Solo se modifican los campos enviados; null o "" borra los opcionales (los obligatorios no pueden vaciarse). ' +
+          'El estado no se cambia aquí (si se envía status, se ignora): usar PATCH /api/schools/{id}/status.',
         properties: {
           ...schoolFields,
+          schedules: {
+            type: 'array',
+            description:
+              'Lista completa de horarios del colegio (si se omite, no se tocan). Los que traen id de un horario activo ' +
+              'del colegio se actualizan, los que no traen id se crean y los horarios activos que no aparecen pasan a status 0. ' +
+              'Un arreglo vacío desactiva todos. Se aplica en la misma transacción que los datos del colegio.',
+            items: ref('UpdateSchoolScheduleInput'),
+          },
+        },
+      },
+      ChangeUserStatusRequest: {
+        type: 'object',
+        required: ['status'],
+        properties: {
+          status: { type: 'integer', enum: [0, 1], description: '0 = DISABLED (inactivo), 1 = ACTIVE' },
+        },
+      },
+      ChangeSchoolStatusRequest: {
+        type: 'object',
+        required: ['status'],
+        properties: {
           status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+        },
+      },
+      ChangeStationStatusRequest: {
+        type: 'object',
+        required: ['status'],
+        properties: {
+          status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+        },
+      },
+      ExportRow: {
+        type: 'object',
+        description:
+          'Fila plana para Excel: cada clave es el encabezado de la columna (en español) y su valor la celda. ' +
+          'Las fechas van como dd/mm/aaaa y los estados como texto ("Activo" / "Inactivo").',
+        additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] },
+      },
+      UpdateSchoolScheduleInput: {
+        type: 'object',
+        required: ['level', 'startTime', 'endTime'],
+        properties: {
+          id: { type: 'string', format: 'uuid', description: 'Id del horario a actualizar; omitir para crear uno nuevo' },
+          ...scheduleFields,
+        },
+      },
+
+      Pagination: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', example: 1 },
+          pageSize: { type: 'integer', example: 10 },
+          total: { type: 'integer', example: 42, description: 'Total de elementos que cumplen los filtros' },
+          totalPages: { type: 'integer', example: 5 },
+        },
+      },
+
+      // ---- School Settings
+      SchoolSettings: {
+        type: 'object',
+        description: 'Configuración completa del colegio; ambos perfiles reciben todos los campos.',
+        properties: {
+          schoolId: { type: 'string', format: 'uuid' },
+          ...settingsProps,
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      UpdateSchoolSettingsSuperadminRequest: {
+        type: 'object',
+        properties: superadminSettingsProps,
+        description:
+          `Campos que puede modificar el SUPERADMIN: ${codeList(SUPERADMIN_SETTINGS_FIELDS)}. ` +
+          'Solo se modifican los campos enviados; cualquier otro campo se ignora.',
+      },
+      UpdateSchoolSettingsAppAdminRequest: {
+        type: 'object',
+        properties: appAdminSettingsProps,
+        description:
+          `Campos que puede modificar el APP_ADMIN: ${codeList(APP_ADMIN_SETTINGS_FIELDS)}. ` +
+          `Solo se modifican los campos enviados; los exclusivos del SUPERADMIN (${codeList(superadminOnlySettings)}) se ignoran.`,
+      },
+
+      // ---- Face Parameters
+      FaceParameters: {
+        type: 'object',
+        properties: {
+          version: { type: 'integer', example: 1 },
+          ...faceParameterProps,
+        },
+      },
+      CreateFaceParametersRequest: {
+        type: 'object',
+        required: [...FACE_NUMERIC_FIELDS],
+        properties: faceParameterProps,
+        description: 'Crea una nueva versión. Los numéricos admiten máximo 4 decimales; los booleanos son opcionales (por defecto true).',
+      },
+      UpdateFaceParametersRequest: {
+        type: 'object',
+        properties: faceParameterProps,
+        description: 'Solo se modifican los campos enviados.',
+      },
+
+      // ---- Schedules
+      SchoolScheduleInput: {
+        type: 'object',
+        required: ['level', 'startTime', 'endTime'],
+        properties: scheduleFields,
+      },
+      CreateScheduleRequest: {
+        type: 'object',
+        required: ['schoolId', 'level', 'startTime', 'endTime'],
+        properties: {
+          schoolId: { type: 'string', format: 'uuid' },
+          ...scheduleFields,
+        },
+      },
+      ScheduleItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          level: scheduleFields.level,
+          school: { type: 'string', format: 'uuid', description: 'Id del colegio' },
+          startTime: { type: 'string', example: '07:45', description: 'HH:MM' },
+          endTime: { type: 'string', example: '13:30', description: 'HH:MM' },
         },
       },
 
@@ -223,6 +548,103 @@ const openapi = {
           name: { type: 'string', example: 'DNI' },
           size: { type: 'integer', example: 8, description: 'Longitud exacta del número de documento' },
           description: nullableString(),
+        },
+      },
+
+      // ---- Dashboard
+      SchoolSummary: {
+        type: 'object',
+        properties: {
+          totalSchools: { type: 'integer', example: 12, description: 'Colegios activos' },
+          photoNotifications: { type: 'integer', example: 340, description: 'Avisos enviados con foto' },
+          inactiveStations: { type: 'integer', example: 1, description: 'Estaciones inactivas' },
+          stationsNeedingAttention: {
+            type: 'integer',
+            example: 0,
+            description: 'Por ahora siempre 0 (criterio pendiente de definir)',
+          },
+        },
+      },
+
+      UserSummary: {
+        type: 'object',
+        description: 'Cuentas de usuario sin contar las SUPERADMIN',
+        properties: {
+          total: { type: 'integer', example: 40 },
+          active: { type: 'integer', example: 30, description: 'Estado ACTIVE' },
+          pending: { type: 'integer', example: 7, description: 'Estado INVITED' },
+          inactive: { type: 'integer', example: 3, description: 'Estado DISABLED' },
+        },
+      },
+      StationSummary: {
+        type: 'object',
+        properties: {
+          total: { type: 'integer', example: 15 },
+          active: { type: 'integer', example: 14 },
+          inactive: { type: 'integer', example: 1 },
+        },
+      },
+
+      // ---- Stations
+      StationListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Puerta principal' },
+          code: { type: 'string', example: 'EST-001' },
+          school: { type: 'string', description: 'Nombre del colegio' },
+          version: { type: 'string', example: '1.0.0', description: 'Por ahora siempre "1.0.0"' },
+          lastCommunication: { type: 'string', example: '-', description: 'Por ahora siempre "-"' },
+          status: { type: 'string', enum: ['INACTIVE', 'ACTIVE'] },
+        },
+      },
+      StationItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Puerta principal' },
+          code: { type: 'string', example: 'EST-001' },
+          schoolId: { type: 'string', format: 'uuid' },
+          school: { type: 'string', description: 'Nombre del colegio' },
+          version: nullableString({ example: '1.0.0' }),
+          serialNumber: nullableString(),
+          lastSyncAt: nullableDate,
+          status: { type: 'string', enum: ['INACTIVE', 'ACTIVE'] },
+          createdDate: { type: 'string', example: '11/11/2026', description: 'dd/mm/yyyy' },
+        },
+      },
+      CreateStationRequest: {
+        type: 'object',
+        required: ['name', 'code', 'schoolId'],
+        properties: {
+          name: { type: 'string', maxLength: 80, example: 'Puerta principal' },
+          code: { type: 'string', maxLength: 20, example: 'EST-001', description: 'Único entre todas las estaciones' },
+          schoolId: { type: 'string', format: 'uuid' },
+          version: nullableString({ maxLength: 20 }),
+          serialNumber: nullableString({ maxLength: 60 }),
+        },
+        description: 'La estación se crea siempre ACTIVE (1); si se envía status, se ignora.',
+      },
+      UpdateStationRequest: {
+        type: 'object',
+        description: 'Solo se modifican los campos enviados; null o "" borra los opcionales.',
+        properties: {
+          name: { type: 'string', maxLength: 80 },
+          code: { type: 'string', maxLength: 20 },
+          schoolId: { type: 'string', format: 'uuid' },
+          version: nullableString({ maxLength: 20 }),
+          serialNumber: nullableString({ maxLength: 60 }),
+          status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+        },
+      },
+
+      // ---- Roles
+      RoleItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Portería' },
+          code: { type: 'string', example: 'DOOR_STAFF' },
         },
       },
 
@@ -252,6 +674,8 @@ const openapi = {
             example: 'image/jpeg',
           },
           originalName: { type: 'string', example: 'foto.jpg' },
+          schoolId: { type: 'string', format: 'uuid', description: 'SUPERADMIN: obligatorio salvo que envíe stationId (se usa su colegio). Otros roles: se usa su propio colegio (se ignora)' },
+          stationId: { type: 'string', format: 'uuid', description: 'Opcional; estación que capturó el archivo (debe ser del mismo colegio)' },
         },
       },
       CreateUploadResponse: {
@@ -279,7 +703,9 @@ const openapi = {
           height: { type: 'integer', nullable: true },
           durationMs: { type: 'integer', nullable: true },
           variants: { type: 'object', additionalProperties: { type: 'string' } },
-          ownerId: { type: 'string', format: 'uuid', nullable: true },
+          ownerId: { type: 'string', format: 'uuid', description: 'Usuario que subió el archivo' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Colegio al que pertenece el archivo' },
+          stationId: { type: 'string', format: 'uuid', nullable: true, description: 'Estación que capturó el archivo (opcional)' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
@@ -383,10 +809,11 @@ const openapi = {
           query('roleId', { type: 'string', format: 'uuid' }, 'Rol exacto'),
           query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
           query('status', { type: 'integer', enum: [0, 1, 2] }, '0 = DISABLED, 1 = ACTIVE, 2 = INVITED'),
+          ...paginationParams,
         ],
         responses: {
-          200: ok('Usuarios ordenados por fecha de creación', { type: 'array', items: ref('UserItem') }),
-          400: errorResponse('Filtro inválido'),
+          200: okPage('Página de usuarios ordenados por fecha de creación', ref('UserItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
           401: unauthorized,
           403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
         },
@@ -398,14 +825,52 @@ const openapi = {
         requestBody: { required: true, content: json('CreateUserRequest') },
         responses: {
           200: okId('Id del usuario creado'),
-          400: errorResponse('Datos inválidos'),
+          400: errorResponse('Datos inválidos, documento con longitud incorrecta o FK inexistente'),
           401: unauthorized,
-          403: errorResponse('Rol sin permiso o intento de asignar el rol SUPERADMIN'),
+          403: errorResponse('Rol sin permiso, intento de asignar el rol SUPERADMIN o colegio ajeno'),
           409: errorResponse('Email o documento ya registrado'),
         },
       },
     },
+    '/api/user/export': {
+      get: {
+        tags: ['Users'],
+        summary: 'Exportar usuarios (Excel)',
+        description:
+          'Todos los usuarios que cumplen los filtros, sin paginar, como filas planas listas para una hoja de Excel. ' +
+          'Mismas reglas que el listado: nunca incluye al SUPERADMIN; un SUPERADMIN ve todos los colegios y otro rol solo el suyo ' +
+          '(el filtro `schoolId` se ignora); solo usuarios con rol y colegio activos. ' +
+          'Columnas: Nombre, Correo electrónico, Tipo de documento, Documento, Teléfono, Cargo, Rol, Colegio, Estado, ' +
+          'Último acceso, Fecha de registro.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
+          query('roleId', { type: 'string', format: 'uuid' }, 'Rol exacto'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+          query('status', { type: 'integer', enum: [0, 1, 2] }, '0 = DISABLED, 1 = ACTIVE, 2 = INVITED'),
+        ],
+        responses: {
+          200: ok('Filas ordenadas por nombre', { type: 'array', items: ref('ExportRow') }),
+          400: errorResponse('Filtro inválido'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+    },
     '/api/user/{id}': {
+      get: {
+        tags: ['Users'],
+        summary: 'Obtener usuario',
+        description: 'No devuelve SUPERADMIN. Un rol distinto de SUPERADMIN solo puede ver usuarios de su colegio.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Usuario', ref('UserDetail')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Usuario no encontrado'),
+        },
+      },
       put: {
         tags: ['Users'],
         summary: 'Actualizar usuario',
@@ -437,6 +902,27 @@ const openapi = {
       },
     },
 
+    '/api/user/{id}/status': {
+      patch: {
+        tags: ['Users'],
+        summary: 'Cambiar estado del usuario',
+        description:
+          'Activa (1) o desactiva (0) la cuenta. Al desactivarla también cierra todas sus sesiones. ' +
+          'No se acepta INVITED (2) ni cambiar el estado de la propia cuenta. Un rol distinto de SUPERADMIN ' +
+          'solo puede cambiar usuarios de su colegio.',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('ChangeUserStatusRequest') },
+        responses: {
+          200: okId('Id del usuario'),
+          400: errorResponse('Estado inválido o intento de cambiar la propia cuenta'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Usuario no encontrado'),
+        },
+      },
+    },
+
     // ---- Schools
     '/api/schools': {
       get: {
@@ -446,32 +932,66 @@ const openapi = {
         parameters: [
           query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
           query('status', { type: 'integer', enum: [0, 1] }, '0 = INACTIVE, 1 = ACTIVE'),
+          ...paginationParams,
         ],
         responses: {
-          200: ok('Colegios ordenados por nombre', { type: 'array', items: ref('SchoolItem') }),
-          400: errorResponse('Filtro inválido'),
+          200: okPage('Página de colegios ordenados por nombre', ref('SchoolItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
           401: unauthorized,
           403: forbidden,
         },
       },
       post: {
         tags: ['Schools'],
-        summary: 'Crear colegio',
+        summary: 'Crear colegio (y opcionalmente sus horarios)',
         security: bearer,
         requestBody: { required: true, content: json('CreateSchoolRequest') },
         responses: {
           201: okId('Id del colegio creado'),
-          400: errorResponse('Datos inválidos'),
+          400: errorResponse('Datos inválidos del colegio o de algún horario (level, startTime/endTime HH:MM, startTime < endTime)'),
           401: unauthorized,
           403: forbidden,
           409: errorResponse('Código modular o slug ya registrado'),
         },
       },
     },
+    '/api/schools/simple': {
+      get: {
+        tags: ['Schools'],
+        summary: 'Listar colegios activos (solo id y nombre)',
+        security: bearer,
+        responses: {
+          200: ok('Colegios activos ordenados por nombre', { type: 'array', items: ref('SchoolOption') }),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+    '/api/schools/export': {
+      get: {
+        tags: ['Schools'],
+        summary: 'Exportar colegios (Excel)',
+        description:
+          'Todos los colegios que cumplen los filtros, sin paginar, como filas planas listas para una hoja de Excel. ' +
+          'Columnas: Nombre, Slug, Código modular, RUC, Dirección, Región, Provincia, Distrito, Teléfono, Servicio de fotos, ' +
+          'Estaciones activas, Estaciones totales, Estado, Fecha de registro.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
+          query('status', { type: 'integer', enum: [0, 1] }, '0 = INACTIVE, 1 = ACTIVE'),
+        ],
+        responses: {
+          200: ok('Filas ordenadas por nombre', { type: 'array', items: ref('ExportRow') }),
+          400: errorResponse('Filtro inválido'),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
     '/api/schools/{id}': {
       get: {
         tags: ['Schools'],
-        summary: 'Obtener colegio',
+        summary: 'Obtener colegio con sus horarios',
         security: bearer,
         parameters: [idParam],
         responses: {
@@ -498,8 +1018,10 @@ const openapi = {
       },
       delete: {
         tags: ['Schools'],
-        summary: 'Desactivar colegio (soft delete)',
-        description: 'Marca el colegio como INACTIVE; la fila se conserva porque otras tablas la referencian.',
+        summary: 'Desactivar colegio y sus horarios (soft delete)',
+        description:
+          'Marca el colegio como INACTIVE y sus horarios (Schedule) con status 0, en una sola transacción; ' +
+          'las filas se conservan porque otras tablas referencian al colegio.',
         security: bearer,
         parameters: [idParam],
         responses: {
@@ -507,6 +1029,289 @@ const openapi = {
           401: unauthorized,
           403: forbidden,
           404: errorResponse('Colegio no encontrado'),
+        },
+      },
+    },
+    '/api/schools/{id}/status': {
+      patch: {
+        tags: ['Schools'],
+        summary: 'Cambiar estado del colegio',
+        description:
+          'Activa (1) o desactiva (0) el colegio. Al desactivarlo también pasa sus horarios a status 0, en una sola transacción; ' +
+          'al activarlo los horarios no se reactivan (se vuelven a cargar con PUT /api/schools/{id}).',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('ChangeSchoolStatusRequest') },
+        responses: {
+          200: okId('Id del colegio'),
+          400: errorResponse('Estado inválido'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Colegio no encontrado'),
+        },
+      },
+    },
+
+    // ---- Stations
+    '/api/stations': {
+      get: {
+        tags: ['Stations'],
+        summary: 'Listar estaciones',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto'),
+          query('status', { type: 'integer', enum: [0, 1] }, '0 = INACTIVE, 1 = ACTIVE'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de estaciones ordenadas por nombre', ref('StationListItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+      post: {
+        tags: ['Stations'],
+        summary: 'Crear estación',
+        security: bearer,
+        requestBody: { required: true, content: json('CreateStationRequest') },
+        responses: {
+          201: okId('Id de la estación creada'),
+          400: errorResponse('Datos inválidos o colegio inexistente'),
+          401: unauthorized,
+          403: forbidden,
+          409: errorResponse('Código ya registrado'),
+        },
+      },
+    },
+    '/api/stations/export': {
+      get: {
+        tags: ['Stations'],
+        summary: 'Exportar estaciones (Excel)',
+        description:
+          'Todas las estaciones que cumplen los filtros, sin paginar, como filas planas listas para una hoja de Excel. ' +
+          'Columnas: Nombre, Código, Colegio, Versión, Número de serie, Última sincronización, Estado, Fecha de registro.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto'),
+          query('status', { type: 'integer', enum: [0, 1] }, '0 = INACTIVE, 1 = ACTIVE'),
+        ],
+        responses: {
+          200: ok('Filas ordenadas por nombre', { type: 'array', items: ref('ExportRow') }),
+          400: errorResponse('Filtro inválido'),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+    '/api/stations/{id}/status': {
+      patch: {
+        tags: ['Stations'],
+        summary: 'Cambiar estado de la estación',
+        description: 'Activa (1) o desactiva (0) la estación.',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('ChangeStationStatusRequest') },
+        responses: {
+          200: okId('Id de la estación'),
+          400: errorResponse('Estado inválido'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estación no encontrada'),
+        },
+      },
+    },
+
+    '/api/stations/{id}': {
+      get: {
+        tags: ['Stations'],
+        summary: 'Obtener estación',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Estación', ref('StationItem')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estación no encontrada'),
+        },
+      },
+      put: {
+        tags: ['Stations'],
+        summary: 'Actualizar estación',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('UpdateStationRequest') },
+        responses: {
+          200: okId('Id de la estación actualizada'),
+          400: errorResponse('Datos inválidos o colegio inexistente'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estación no encontrada'),
+          409: errorResponse('Código ya registrado'),
+        },
+      },
+      delete: {
+        tags: ['Stations'],
+        summary: 'Desactivar estación (soft delete)',
+        description:
+          'Marca la estación como INACTIVE; la fila se conserva porque llegadas, retiros y marcaciones la referencian. ' +
+          'Para reactivarla usa PATCH /api/stations/{id}/status con status 1.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id de la estación desactivada'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estación no encontrada'),
+        },
+      },
+    },
+
+    // ---- School Settings
+    '/api/school-settings': {
+      get: {
+        tags: ['School Settings'],
+        summary: 'Obtener la configuración de mi colegio (APP_ADMIN)',
+        security: bearer,
+        responses: {
+          200: ok('Configuración del colegio del usuario', ref('SchoolSettings')),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Colegio no encontrado'),
+        },
+      },
+      put: {
+        tags: ['School Settings'],
+        summary: 'Actualizar la configuración de mi colegio (APP_ADMIN)',
+        description: `Modifica solo los campos del APP_ADMIN: ${codeList(APP_ADMIN_SETTINGS_FIELDS)}. Cualquier otro campo se ignora.`,
+        security: bearer,
+        requestBody: { required: true, content: json('UpdateSchoolSettingsAppAdminRequest') },
+        responses: {
+          200: okId('Id del colegio'),
+          400: errorResponse('Datos inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Colegio no encontrado'),
+        },
+      },
+    },
+    '/api/school-settings/{schoolId}': {
+      get: {
+        tags: ['School Settings'],
+        summary: 'Obtener la configuración de un colegio (SUPERADMIN)',
+        security: bearer,
+        parameters: [schoolIdParam],
+        responses: {
+          200: ok('Configuración del colegio', ref('SchoolSettings')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Colegio no encontrado'),
+        },
+      },
+      put: {
+        tags: ['School Settings'],
+        summary: 'Actualizar la configuración de un colegio (SUPERADMIN)',
+        description: `Modifica solo los campos del SUPERADMIN: ${codeList(SUPERADMIN_SETTINGS_FIELDS)}. Cualquier otro campo se ignora.`,
+        security: bearer,
+        parameters: [schoolIdParam],
+        requestBody: { required: true, content: json('UpdateSchoolSettingsSuperadminRequest') },
+        responses: {
+          200: okId('Id del colegio'),
+          400: errorResponse('Datos inválidos'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Colegio no encontrado'),
+        },
+      },
+    },
+
+    // ---- Face Parameters
+    '/api/face-parameters': {
+      get: {
+        tags: ['Face Parameters'],
+        summary: 'Obtener la última versión de parámetros',
+        security: bearer,
+        responses: {
+          200: ok('Última versión (la de mayor "version")', ref('FaceParameters')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('No hay parámetros registrados'),
+        },
+      },
+      post: {
+        tags: ['Face Parameters'],
+        summary: 'Crear nueva versión de parámetros',
+        security: bearer,
+        requestBody: { required: true, content: json('CreateFaceParametersRequest') },
+        responses: {
+          201: ok('Número de versión creada', { type: 'integer', example: 2 }),
+          400: errorResponse('Datos inválidos'),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+    '/api/face-parameters/{version}': {
+      get: {
+        tags: ['Face Parameters'],
+        summary: 'Obtener una versión de parámetros',
+        security: bearer,
+        parameters: [versionParam],
+        responses: {
+          200: ok('Versión solicitada', ref('FaceParameters')),
+          400: errorResponse('Versión inválida'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Versión no encontrada'),
+        },
+      },
+      put: {
+        tags: ['Face Parameters'],
+        summary: 'Actualizar una versión de parámetros',
+        security: bearer,
+        parameters: [versionParam],
+        requestBody: { required: true, content: json('UpdateFaceParametersRequest') },
+        responses: {
+          200: ok('Número de versión actualizada', { type: 'integer', example: 1 }),
+          400: errorResponse('Datos o versión inválidos'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Versión no encontrada'),
+        },
+      },
+    },
+
+    // ---- Schedules
+    '/api/schedules': {
+      post: {
+        tags: ['Schedules'],
+        summary: 'Crear horario',
+        security: bearer,
+        requestBody: { required: true, content: json('CreateScheduleRequest') },
+        responses: {
+          201: ok('Horario creado', ref('ScheduleItem')),
+          400: errorResponse('Datos inválidos (level, startTime/endTime HH:MM, startTime < endTime)'),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+    '/api/schedules/bulk': {
+      post: {
+        tags: ['Schedules'],
+        summary: 'Crear varios horarios',
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'array', items: ref('CreateScheduleRequest') } } },
+        },
+        responses: {
+          201: ok('Horarios creados', { type: 'array', items: ref('ScheduleItem') }),
+          400: errorResponse('El body no es un array o algún horario es inválido; no se crea ninguno'),
+          401: unauthorized,
+          403: forbidden,
         },
       },
     },
@@ -519,6 +1324,58 @@ const openapi = {
         security: bearer,
         responses: {
           200: ok('Tipos de documento ordenados por nombre', { type: 'array', items: ref('DocumentTypeItem') }),
+          401: unauthorized,
+        },
+      },
+    },
+
+    // ---- Dashboard
+    '/api/dashboard/school-summary': {
+      get: {
+        tags: ['Dashboard'],
+        summary: 'Resumen de colegios y estaciones',
+        security: bearer,
+        responses: {
+          200: ok('Indicadores', ref('SchoolSummary')),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+
+    '/api/dashboard/user-summary': {
+      get: {
+        tags: ['Dashboard'],
+        summary: 'Resumen de usuarios por estado',
+        security: bearer,
+        responses: {
+          200: ok('Indicadores', ref('UserSummary')),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+    '/api/dashboard/station-summary': {
+      get: {
+        tags: ['Dashboard'],
+        summary: 'Resumen de estaciones por estado',
+        security: bearer,
+        responses: {
+          200: ok('Indicadores', ref('StationSummary')),
+          401: unauthorized,
+          403: forbidden,
+        },
+      },
+    },
+
+    // ---- Roles
+    '/api/roles': {
+      get: {
+        tags: ['Roles'],
+        summary: 'Listar roles asignables (excluye SUPERADMIN)',
+        security: bearer,
+        responses: {
+          200: ok('Roles activos ordenados por nombre', { type: 'array', items: ref('RoleItem') }),
           401: unauthorized,
         },
       },
@@ -539,13 +1396,58 @@ const openapi = {
     },
 
     // ---- Media (respuestas sin envoltorio { status, data })
+    '/api/media': {
+      post: {
+        tags: ['Media'],
+        summary: 'Subir archivo (multipart/form-data)',
+        security: bearer,
+        description:
+          'Sube el archivo a través del API y crea la media ya en estado `uploaded` (se encola su procesamiento). ' +
+          'Útil para probar desde Swagger y para archivos pequeños: en Vercel el body está limitado a 4,5 MB, ' +
+          'así que para videos usar el flujo con URL prefirmada (`/api/media/uploads` + `/confirm`). ' +
+          'El tipo se toma de `mimeType` o, si no se envía, de la extensión del archivo.',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: { type: 'string', format: 'binary', description: 'jpg, png, webp, mp4, webm o mov' },
+                  mimeType: {
+                    type: 'string',
+                    enum: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'],
+                    description: 'Opcional; por defecto se deduce de la extensión',
+                  },
+                  originalName: { type: 'string', description: 'Opcional; nombre con el que se registra el archivo' },
+                  schoolId: { type: 'string', format: 'uuid', description: 'SUPERADMIN: obligatorio salvo que envíe stationId (se usa su colegio). Otros roles: se usa su propio colegio (se ignora)' },
+                  stationId: { type: 'string', format: 'uuid', description: 'Opcional; estación que capturó el archivo (debe ser del mismo colegio)' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Media creada en estado uploaded', content: json('Media') },
+          400: errorResponse('Falta el archivo o está vacío; schoolId/stationId inválidos, inexistentes o de colegios distintos'),
+          401: unauthorized,
+          403: errorResponse('Cuenta sin colegio asignado'),
+          415: errorResponse('Tipo de archivo no soportado'),
+        },
+      },
+    },
     '/api/media/uploads': {
       post: {
         tags: ['Media'],
         summary: '1. Solicitar URL prefirmada de subida',
+        security: bearer,
         requestBody: { required: true, content: json('CreateUploadRequest') },
         responses: {
           201: { description: 'Registro creado en estado pending', content: json('CreateUploadResponse') },
+          400: errorResponse('schoolId/stationId inválidos, inexistentes o de colegios distintos'),
+          401: unauthorized,
+          403: errorResponse('Cuenta sin colegio asignado'),
           415: errorResponse('Tipo de archivo no soportado'),
         },
       },
@@ -554,10 +1456,12 @@ const openapi = {
       post: {
         tags: ['Media'],
         summary: '2. Confirmar la subida tras el PUT al storage',
+        security: bearer,
         parameters: [idParam],
         responses: {
           200: { description: 'Media marcada como uploaded y encolada para procesamiento', content: json('Media') },
-          404: errorResponse('Media no encontrada'),
+          401: unauthorized,
+          404: errorResponse('Media no encontrada (o de otro colegio)'),
           409: errorResponse('El objeto aún no existe en el storage'),
         },
       },
@@ -566,10 +1470,12 @@ const openapi = {
       get: {
         tags: ['Media'],
         summary: 'Obtener media con URL de descarga',
+        security: bearer,
         parameters: [idParam],
         responses: {
           200: { description: 'Media', content: json('MediaWithUrl') },
-          404: errorResponse('Media no encontrada'),
+          401: unauthorized,
+          404: errorResponse('Media no encontrada (o de otro colegio)'),
         },
       },
     },

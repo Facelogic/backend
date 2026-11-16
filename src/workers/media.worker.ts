@@ -6,7 +6,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import config from '../config/index.ts';
 import { Media, sequelize } from '../db/models/index.ts';
 import type { MediaInstance } from '../interfaces/models/media.interface.ts';
-import * as storage from '../services/storage/s3.storage.ts';
+import storage from '../services/storage/index.ts';
 import { QUEUE_NAME } from '../services/queue/media.queue.ts';
 import type { MediaJobData } from '../interfaces/media.interface.ts';
 import { derivedKey } from '../helper/media.helper.ts';

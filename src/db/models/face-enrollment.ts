@@ -9,8 +9,8 @@ export default function defineFaceEnrollment(sequelize: Sequelize) {
     {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
       schoolId: { type: DataTypes.UUID, allowNull: false },
-      staffId: DataTypes.UUID,
-      guardianId: DataTypes.UUID,
+      staffId: { type: DataTypes.UUID, unique: true },
+      guardianId: { type: DataTypes.UUID, unique: true },
       poses: { type: DataTypes.INTEGER, allowNull: false },
       enrolledAt: { type: DataTypes.DATE(3), allowNull: false },
       consentAt: { type: DataTypes.DATE(3), allowNull: false },

@@ -9,7 +9,7 @@ export default function defineInvitation(sequelize: Sequelize) {
     {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
       userId: { type: DataTypes.UUID, allowNull: false },
-      tokenHash: { type: DataTypes.CHAR(64), allowNull: false },
+      tokenHash: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
       expiresAt: { type: DataTypes.DATE(3), allowNull: false },
       usedAt: DataTypes.DATE(3),
     },

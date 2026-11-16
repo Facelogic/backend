@@ -37,6 +37,13 @@ export default {
     enabled: env.SWAGGER_ENABLED !== 'false',
   },
   redisUrl: env.REDIS_URL || undefined,
+  // 'blob' = Vercel Blob; 's3' (default) = S3-compatible (MinIO / R2 / S3).
+  storageDriver: env.STORAGE_DRIVER === 'blob' ? 'blob' : 's3',
+  blob: {
+    // Set automatically when the Blob store is connected to the Vercel project.
+    storeId: env.BLOB_STORE_ID || undefined,
+    presignExpires: Number(env.BLOB_PRESIGN_EXPIRES) || 900,
+  },
   s3: {
     endpoint: env.S3_ENDPOINT || undefined,
     region: env.S3_REGION || 'us-east-1',

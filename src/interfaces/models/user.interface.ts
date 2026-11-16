@@ -6,6 +6,7 @@ import type { AuditLogInstance } from './audit-log.interface.ts';
 import type { DocumentTypeInstance } from './document-type.interface.ts';
 import type { FaceParametersInstance } from './face-parameters.interface.ts';
 import type { InvitationInstance } from './invitation.interface.ts';
+import type { MediaInstance } from './media.interface.ts';
 import type { PickupInstance } from './pickup.interface.ts';
 import type { ReportDownloadInstance } from './report-download.interface.ts';
 import type { RoleInstance } from './role.interface.ts';
@@ -20,6 +21,7 @@ export interface UserAttributes {
   email: string;
   name: string;
   phone: string | null;
+  position: string | null;
   roleId: string;
   schoolId: string | null;
   status: UserStatus;
@@ -34,11 +36,11 @@ export interface UserAttributes {
   updatedAt: Date;
 }
 
-export type UserCreationAttributes = Optional<UserAttributes, 'id' | 'documentTypeId' | 'document' | 'phone' | 'schoolId' | 'status' | 'passwordHash' | 'pinHash' | 'requireTwoFactor' | 'twoFactorEnabledAt' | 'failedAttempts' | 'lockedUntil' | 'lastLoginAt' | 'createdAt' | 'updatedAt'>;
+export type UserCreationAttributes = Optional<UserAttributes, 'id' | 'documentTypeId' | 'document' | 'phone' | 'position' | 'schoolId' | 'status' | 'passwordHash' | 'pinHash' | 'requireTwoFactor' | 'twoFactorEnabledAt' | 'failedAttempts' | 'lockedUntil' | 'lastLoginAt' | 'createdAt' | 'updatedAt'>;
 
 export interface UserInstance extends Model<UserAttributes, UserCreationAttributes>, UserAttributes {
-  role: NonAttribute<RoleInstance>;
   school?: NonAttribute<SchoolInstance>;
+  role: NonAttribute<RoleInstance>;
   documentType?: NonAttribute<DocumentTypeInstance>;
   sessions?: NonAttribute<SessionInstance[]>;
   invitations?: NonAttribute<InvitationInstance[]>;
@@ -48,4 +50,5 @@ export interface UserInstance extends Model<UserAttributes, UserCreationAttribut
   createdFaceParameters?: NonAttribute<FaceParametersInstance[]>;
   reportDownloads?: NonAttribute<ReportDownloadInstance[]>;
   auditLogs?: NonAttribute<AuditLogInstance[]>;
+  media?: NonAttribute<MediaInstance[]>;
 }

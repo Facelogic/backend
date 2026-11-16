@@ -14,7 +14,7 @@ export default function definePickupCode(sequelize: Sequelize) {
       requestedById: { type: DataTypes.UUID, allowNull: false },
       recipientName: { type: DataTypes.STRING(120), allowNull: false },
       recipientNationalId: { type: DataTypes.CHAR(8), allowNull: false },
-      fingerprint: { type: DataTypes.CHAR(64), allowNull: false },
+      fingerprint: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
       expiresAt: { type: DataTypes.DATE(3), allowNull: false },
       status: { type: DataTypes.ENUM(...CodeStatus), defaultValue: 'VALID', allowNull: false },
       usedAt: DataTypes.DATE(3),
