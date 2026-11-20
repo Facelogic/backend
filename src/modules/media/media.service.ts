@@ -1,13 +1,23 @@
 import crypto from 'node:crypto';
-import { ForeignKeyConstraintError } from 'sequelize';
+import { ForeignKeyConstraintError, Op, type WhereOptions } from 'sequelize';
 import { Media, School, Station } from '../../db/models/index.ts';
+import { MediaStatus } from '../../db/models/media.ts';
 import storage from '../../services/storage/index.ts';
 import { enqueueProcessing } from '../../services/queue/media.queue.ts';
 import HttpError from '../../utils/http-error.ts';
 import { buildKey, kindFor } from '../../helper/media.helper.ts';
-import type { CreateUploadInput, DirectUploadInput, MediaTarget } from '../../interfaces/media.interface.ts';
+import type {
+  CreateUploadInput,
+  DirectUploadInput,
+  MediaListFilters,
+  MediaListItem,
+  MediaTarget,
+} from '../../interfaces/media.interface.ts';
+import type { MediaAttributes, MediaInstance } from '../../interfaces/models/media.interface.ts';
 import type { UserInstance } from '../../interfaces/models/user.interface.ts';
-import { isUuid } from '../../utils/text.util.ts';
+import { containsPattern, initials, isUuid } from '../../utils/text.util.ts';
+import { limaCompactDate, limaDate, limaDayStart, limaTime } from '../../utils/date.util.ts';
+import { parsePagination, toPaginated, type Paginated } from '../../utils/pagination.util.ts';
 
 // School and station a new file is linked to.
 // - stationId is optional; when sent, the station must exist and belong to the file's school.
@@ -48,6 +58,100 @@ async function findAccessible(id: string, currentUser?: UserInstance) {
     throw new HttpError(404, 'Archivo multimedia no encontrado');
   }
   return media;
+}
+
+// Preview of a list item: the thumbnail (images) or poster frame (videos) made by the worker, or the original
+// while it hasn't been processed yet. null while pending (the object isn't in storage yet).
+function previewUrl(media: MediaInstance): Promise<string | null> {
+  if (media.status === 'pending') return Promise.resolve(null);
+  const key = media.variants?.thumb ?? media.variants?.poster ?? media.storageKey;
+  return storage.presignDownload(key);
+}
+
+async function toListItem(media: MediaInstance): Promise<MediaListItem> {
+  const school = media.school?.name ?? '';
+  return {
+    id: media.id,
+    thumbnailUrl: await previewUrl(media),
+    serialCode: media.serialCode,
+    code: `${initials(school)}${limaCompactDate(media.createdAt)}`,
+    savedAt: media.createdAt.toISOString(),
+    date: limaDate(media.createdAt),
+    time: limaTime(media.createdAt),
+    school,
+    station: media.station?.name ?? null,
+    status: media.status,
+  };
+}
+
+function parseUuidFilter(field: string, raw: unknown): string | undefined {
+  const value = String(raw ?? '').trim();
+  if (!value) return undefined;
+  if (!isUuid(value)) throw new HttpError(400, `${field} inválido`);
+  return value;
+}
+
+// "yyyy-mm-dd" (Lima day) -> start of that day; with endOfDay, the start of the next day (exclusive bound).
+function parseDayFilter(field: string, raw: unknown, endOfDay = false): Date | undefined {
+  const value = String(raw ?? '').trim();
+  if (!value) return undefined;
+  const start = limaDayStart(value);
+  if (!start) throw new HttpError(400, `${field} debe tener el formato yyyy-mm-dd`);
+  return endOfDay ? new Date(start.getTime() + 24 * 60 * 60 * 1000) : start;
+}
+
+// Newest first, paginated. Filters: serialCode (part of it), schoolId, stationId, dateFrom/dateTo (Lima days,
+// both inclusive) and status. A non-SUPERADMIN only sees its own school (a schoolId in the query is ignored).
+export async function list(currentUser: UserInstance | undefined, filters: MediaListFilters = {}): Promise<Paginated<MediaListItem>> {
+  if (!currentUser) throw new HttpError(401, 'No autenticado');
+  const { page, pageSize, limit, offset } = parsePagination(filters);
+  const where: WhereOptions<MediaAttributes> = {};
+
+  if (currentUser.role?.code === 'SUPERADMIN') {
+    const schoolId = parseUuidFilter('schoolId', filters.schoolId);
+    if (schoolId) where.schoolId = schoolId;
+  } else {
+    if (!currentUser.schoolId) throw new HttpError(403, 'La cuenta no tiene un colegio asignado');
+    where.schoolId = currentUser.schoolId;
+  }
+
+  const stationId = parseUuidFilter('stationId', filters.stationId);
+  if (stationId) where.stationId = stationId;
+
+  const status = String(filters.status ?? '').trim();
+  if (status) {
+    if (!(MediaStatus as readonly string[]).includes(status)) {
+      throw new HttpError(400, `status debe ser uno de ${MediaStatus.join(', ')}`);
+    }
+    where.status = status as MediaStatus;
+  }
+
+  const serialCode = String(filters.serialCode ?? '').trim();
+  if (serialCode) where.serialCode = { [Op.iLike]: containsPattern(serialCode) };
+
+  const dateFrom = parseDayFilter('dateFrom', filters.dateFrom);
+  const dateTo = parseDayFilter('dateTo', filters.dateTo, true);
+  if (dateFrom && dateTo && dateFrom >= dateTo) throw new HttpError(400, 'dateFrom no puede ser posterior a dateTo');
+  if (dateFrom || dateTo) {
+    (where as Record<string, unknown>).createdAt = {
+      ...(dateFrom && { [Op.gte]: dateFrom }),
+      ...(dateTo && { [Op.lt]: dateTo }),
+    };
+  }
+
+  const { rows, count } = await Media.findAndCountAll({
+    where,
+    attributes: ['id', 'status', 'createdAt', 'schoolId', 'stationId', 'storageKey', 'variants', 'serialCode'],
+    include: [
+      { model: School, as: 'school', attributes: ['name'] },
+      { model: Station, as: 'station', attributes: ['name'] },
+    ],
+    order: [['createdAt', 'DESC'], ['id', 'ASC']],
+    distinct: true,
+    limit,
+    offset,
+  });
+  return toPaginated(await Promise.all(rows.map(toListItem)), count, page, pageSize);
 }
 
 function handleCreateError(err: unknown): never {

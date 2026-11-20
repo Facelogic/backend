@@ -17,6 +17,7 @@ export default function defineDocumentType(sequelize: Sequelize) {
     return Object.assign(DocumentType, {
         associate(models: Models) {
             DocumentType.hasMany(models.User, { foreignKey: 'documentTypeId', as: 'users' });
+            DocumentType.hasMany(models.Student, { foreignKey: 'documentTypeId', as: 'students' });
         },
     });
 }

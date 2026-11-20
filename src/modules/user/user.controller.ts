@@ -2,8 +2,13 @@ import type { Request, Response } from 'express';
 import * as userService from './user.service.ts';
 
 export async function create(req: Request, res: Response) {
-    const userId = await userService.create(req.body ?? {}, req.user);
-    res.status(200).json({ status: true, data: userId });
+    const { id, invitationSent } = await userService.create(req.body ?? {}, req.user);
+    res.status(200).json({ status: true, data: id, invitationSent });
+}
+
+export async function resendInvitation(req: Request<{ id: string }>, res: Response) {
+    await userService.resendInvitation(req.params.id, req.user);
+    res.status(200).json({ status: true, data: req.params.id });
 }
 
 

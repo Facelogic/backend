@@ -32,6 +32,9 @@ export default function defineMedia(sequelize: Sequelize) {
       schoolId: { type: DataTypes.UUID, allowNull: false },
       // Station that captured the file, if any (FK to "Station", ON DELETE SET NULL).
       stationId: { type: DataTypes.UUID, allowNull: true },
+      // "RC-{yyyymmdd}-{######}": set by the DB default on insert (sequence media_serial_code_seq, never repeats).
+      // No allowNull: false here, or Sequelize would reject creates that leave it to the DB.
+      serialCode: { type: DataTypes.STRING(20), unique: true },
     },
     {
       tableName: 'media',

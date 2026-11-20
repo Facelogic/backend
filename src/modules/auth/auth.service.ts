@@ -2,9 +2,9 @@ import crypto from 'node:crypto';
 import { UniqueConstraintError } from 'sequelize';
 import config from '../../config/index.ts';
 import { RoleFlag } from '../../db/models/enums.ts';
-import { Role, Session, User } from '../../db/models/index.ts';
-import { generateToken, hashToken, isValidEmail, normalizeEmail, toPublic } from '../../helper/auth.helper.ts';
-import type { LoginInput, RegisterInput } from '../../interfaces/auth.interface.ts';
+import { Invitation, Role, School, sequelize, Session, User } from '../../db/models/index.ts';
+import { generateToken, hashToken, isValidEmail, normalizeEmail, SESSION_SCHOOL_ATTRIBUTES, toPublic } from '../../helper/auth.helper.ts';
+import type { AcceptInvitationInput, LoginInput, RegisterInput } from '../../interfaces/auth.interface.ts';
 import { UserStatus } from '../../constants/user-status.ts';
 import HttpError from '../../utils/http-error.ts';
 import { hashPassword, verifyPassword } from '../../utils/password.ts';
@@ -56,7 +56,10 @@ export async function login(input: LoginInput) {
   const { password } = input;
   if (!email || typeof password !== 'string') throw new HttpError(400, 'El correo electrónico y la contraseña son obligatorios');
 
-  const user = await User.findOne({ where: { email }, include: [{ model: Role, as: 'role' }] });
+  const user = await User.findOne({
+    where: { email },
+    include: [{ model: Role, as: 'role' }, { model: School, as: 'school', attributes: SESSION_SCHOOL_ATTRIBUTES }],
+  });
   if (!user?.passwordHash) {
     await verifyPassword(password, await DUMMY_HASH);
     throw new HttpError(401, 'Credenciales inválidas');
@@ -88,7 +91,11 @@ export async function login(input: LoginInput) {
 export async function validateToken(token: string) {
   const session = await Session.findOne({
     where: { tokenHash: hashToken(token) },
-    include: [{ model: User, as: 'user', include: [{ model: Role, as: 'role' }] }],
+    include: [{
+      model: User,
+      as: 'user',
+      include: [{ model: Role, as: 'role' }, { model: School, as: 'school', attributes: SESSION_SCHOOL_ATTRIBUTES }],
+    }],
   });
   if (!session?.user) throw new HttpError(401, 'Token inválido');
   if (session.expiresAt <= new Date()) {
@@ -112,4 +119,63 @@ export async function logout(token: string) {
   } catch (err) {
     throw new HttpError(500, 'Hubo un inconveniente al cerrar sesión');
   }
+}
+
+// Loads a pending invitation by its raw token (from the email link) or throws.
+async function findPendingInvitation(token: unknown) {
+  if (typeof token !== 'string' || !token.trim()) throw new HttpError(400, 'El token de invitación es obligatorio');
+  const invitation = await Invitation.findOne({
+    where: { tokenHash: hashToken(token.trim()) },
+    include: [{
+      model: User,
+      as: 'user',
+      include: [{ model: Role, as: 'role', attributes: ['name', 'code'] }, { model: School, as: 'school', attributes: ['name'] }],
+    }],
+  });
+  if (!invitation?.user) throw new HttpError(404, 'La invitación no existe o ya no es válida');
+  if (invitation.usedAt) throw new HttpError(410, 'La invitación ya fue utilizada');
+  if (invitation.expiresAt <= new Date()) throw new HttpError(410, 'La invitación ha expirado, solicita una nueva');
+  if (invitation.user.status !== UserStatus.INVITED) throw new HttpError(410, 'La invitación ya no es válida');
+  return invitation as typeof invitation & { user: NonNullable<typeof invitation.user> };
+}
+
+// Data shown by the "set password" page before the user submits the form.
+export async function getInvitation(token: unknown) {
+  const { user, expiresAt } = await findPendingInvitation(token);
+  return {
+    name: user.name,
+    email: user.email,
+    role: user.role?.name ?? null,
+    school: user.school?.name ?? null,
+    expiresAt,
+  };
+}
+
+// Sets the password of an invited user and activates the account. The invitation can only be used once.
+export async function acceptInvitation(input: AcceptInvitationInput) {
+  const { password, confirmPassword } = input;
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD) {
+    throw new HttpError(400, `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`);
+  }
+  if (confirmPassword !== undefined && confirmPassword !== password) {
+    throw new HttpError(400, 'Las contraseñas no coinciden');
+  }
+
+  const invitation = await findPendingInvitation(input.token);
+  const passwordHash = await hashPassword(password);
+
+  await sequelize.transaction(async (transaction) => {
+    // Guarded update so two concurrent submits can't both consume the same invitation.
+    const [used] = await Invitation.update(
+      { usedAt: new Date() },
+      { where: { id: invitation.id, usedAt: null }, transaction },
+    );
+    if (!used) throw new HttpError(410, 'La invitación ya fue utilizada');
+    await invitation.user.update(
+      { passwordHash, status: UserStatus.ACTIVE, failedAttempts: 0, lockedUntil: null },
+      { transaction },
+    );
+  });
+
+  return { email: invitation.user.email };
 }

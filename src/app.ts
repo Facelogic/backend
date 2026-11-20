@@ -19,6 +19,8 @@ import scheduleRoutes from './modules/schedule/schedule.routes.ts';
 import roleRoutes from './modules/role/role.routes.ts';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.ts';
 import stationRoutes from './modules/station/station.routes.ts';
+import studentRoutes from './modules/student/student.routes.ts';
+import shiftRoutes from './modules/shift/shift.routes.ts';
 import faceParametersRoutes from './modules/face-parameters/face-parameters.routes.ts';
 import schoolSettingsRoutes from './modules/school-settings/school-settings.routes.ts';
 
@@ -67,6 +69,8 @@ app.use('/api/schedules', scheduleRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/stations', stationRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/shifts', shiftRoutes);
 app.use('/api/face-parameters', faceParametersRoutes);
 app.use('/api/school-settings', schoolSettingsRoutes);
 

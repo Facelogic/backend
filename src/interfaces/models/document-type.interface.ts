@@ -1,4 +1,5 @@
 import type { Model, NonAttribute, Optional } from 'sequelize';
+import type { StudentInstance } from './student.interface.ts';
 import type { UserInstance } from './user.interface.ts';
 
 export interface DocumentTypeAttributes {
@@ -14,4 +15,5 @@ export type DocumentTypeCreationAttributes = Optional<DocumentTypeAttributes, 'i
 
 export interface DocumentTypeInstance extends Model<DocumentTypeAttributes, DocumentTypeCreationAttributes>, DocumentTypeAttributes {
     users?: NonAttribute<UserInstance[]>;
+    students?: NonAttribute<StudentInstance[]>;
 }

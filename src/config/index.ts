@@ -36,6 +36,17 @@ export default {
     // Swagger UI at /api/docs; set SWAGGER_ENABLED=false to hide it.
     enabled: env.SWAGGER_ENABLED !== 'false',
   },
+  // Transactional email through Brevo (https://developers.brevo.com/reference/sendtransacemail).
+  mail: {
+    brevoApiKey: env.BREVO_API_KEY || '',
+    senderEmail: env.MAIL_SENDER_EMAIL || '',
+    senderName: env.MAIL_SENDER_NAME || 'Facelogic',
+  },
+  invitation: {
+    // Frontend page with the "set your password" form; the token is appended as ?token=...
+    acceptUrl: env.INVITATION_ACCEPT_URL || 'http://localhost:5173/establecer-contrasena',
+    ttlHours: Number(env.INVITATION_TTL_HOURS) || 72,
+  },
   redisUrl: env.REDIS_URL || undefined,
   // 'blob' = Vercel Blob; 's3' (default) = S3-compatible (MinIO / R2 / S3).
   storageDriver: env.STORAGE_DRIVER === 'blob' ? 'blob' : 's3',

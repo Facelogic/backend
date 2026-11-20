@@ -4,3 +4,13 @@ export const isUuid = (value: unknown): value is string => typeof value === 'str
 
 // "%text%" for an ILIKE "contains" search; "%", "_" and "\" typed by the user are matched literally.
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+// Uppercase first letter of each word, accents removed: "Colegio San José" -> "CSJ".
+export const initials = (text: string) =>
+    text
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .split(/[^A-Za-z0-9]+/)
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase())
+        .join('');

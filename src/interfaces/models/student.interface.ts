@@ -4,6 +4,7 @@ import type { Level } from '../../db/models/enums.ts';
 import type { AlertInstance } from './alert.interface.ts';
 import type { ArrivalInstance } from './arrival.interface.ts';
 import type { AuthorizationInstance } from './authorization.interface.ts';
+import type { DocumentTypeInstance } from './document-type.interface.ts';
 import type { NotificationInstance } from './notification.interface.ts';
 import type { PickupInstance } from './pickup.interface.ts';
 import type { PickupCodeInstance } from './pickup-code.interface.ts';
@@ -14,7 +15,8 @@ export interface StudentAttributes {
   schoolId: string;
   firstName: string;
   lastName: string;
-  nationalId: string | null;
+  documentTypeId: string | null;
+  document: string | null;
   level: Level;
   grade: string;
   section: string | null;
@@ -26,10 +28,11 @@ export interface StudentAttributes {
   updatedAt: Date;
 }
 
-export type StudentCreationAttributes = Optional<StudentAttributes, 'id' | 'nationalId' | 'section' | 'badgeVersion' | 'canLeaveAlone' | 'active' | 'createdAt' | 'updatedAt'>;
+export type StudentCreationAttributes = Optional<StudentAttributes, 'id' | 'documentTypeId' | 'document' | 'section' | 'badgeVersion' | 'canLeaveAlone' | 'active' | 'createdAt' | 'updatedAt'>;
 
 export interface StudentInstance extends Model<StudentAttributes, StudentCreationAttributes>, StudentAttributes {
   school?: NonAttribute<SchoolInstance>;
+  documentType?: NonAttribute<DocumentTypeInstance>;
   authorizations?: NonAttribute<AuthorizationInstance[]>;
   arrivals?: NonAttribute<ArrivalInstance[]>;
   pickups?: NonAttribute<PickupInstance[]>;

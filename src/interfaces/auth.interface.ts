@@ -13,3 +13,9 @@ export interface LoginInput {
   email?: unknown;
   password?: unknown;
 }
+
+export interface AcceptInvitationInput {
+  token?: unknown;
+  password?: unknown;
+  confirmPassword?: unknown;
+}

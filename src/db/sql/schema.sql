@@ -186,7 +186,8 @@ CREATE TABLE "Student" (
     "schoolId" UUID NOT NULL,
     "firstName" VARCHAR(80) NOT NULL,
     "lastName" VARCHAR(80) NOT NULL,
-    "nationalId" CHAR(8),
+    "documentTypeId" UUID,
+    "document" VARCHAR(12),
     "level" "Level" NOT NULL,
     "grade" VARCHAR(20) NOT NULL,
     "section" VARCHAR(10),
@@ -540,7 +541,10 @@ CREATE TABLE "Schedule" (
     CONSTRAINT "Schedule_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable (20261029000000-create-media, 20261115000000, 20261115000001; snake_case, hand-written model media.ts)
+-- CreateSequence (20261119000000; ###### part of media.serial_code)
+CREATE SEQUENCE "media_serial_code_seq" MINVALUE 1 MAXVALUE 999999 NO CYCLE;
+
+-- CreateTable (20261029000000-create-media, 20261115000000, 20261115000001, 20261119000000; snake_case, hand-written model media.ts)
 CREATE TABLE "media" (
     "id" UUID NOT NULL,
     "kind" "enum_media_kind" NOT NULL,
@@ -558,6 +562,7 @@ CREATE TABLE "media" (
     "owner_id" UUID NOT NULL,
     "school_id" UUID NOT NULL,
     "station_id" UUID,
+    "serial_code" VARCHAR(20) NOT NULL DEFAULT 'RC-' || to_char(now() AT TIME ZONE 'America/Lima', 'YYYYMMDD') || '-' || lpad(nextval('media_serial_code_seq')::text, 6, '0'),
     "created_at" TIMESTAMPTZ NOT NULL,
     "updated_at" TIMESTAMPTZ NOT NULL,
     "deleted_at" TIMESTAMPTZ,
@@ -602,7 +607,7 @@ CREATE UNIQUE INDEX "Student_badgeCode_key" ON "Student"("badgeCode");
 CREATE INDEX "Student_schoolId_lastName_idx" ON "Student"("schoolId", "lastName");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Student_schoolId_nationalId_key" ON "Student"("schoolId", "nationalId");
+CREATE UNIQUE INDEX "Student_schoolId_document_key" ON "Student"("schoolId", "document");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Guardian_schoolId_nationalId_key" ON "Guardian"("schoolId", "nationalId");
@@ -702,6 +707,9 @@ CREATE INDEX "Schedule_schoolId_idx" ON "Schedule"("schoolId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "media_storage_key_key" ON "media"("storage_key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "media_serial_code_key" ON "media"("serial_code");
 
 -- CreateIndex
 CREATE INDEX "media_owner_id_created_at" ON "media"("owner_id", "created_at");
@@ -876,6 +884,9 @@ ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_schoolId_fkey" FOREIGN KEY ("sch
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Student" ADD CONSTRAINT "Student_documentTypeId_fkey" FOREIGN KEY ("documentTypeId") REFERENCES "DocumentType"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_documentTypeId_fkey" FOREIGN KEY ("documentTypeId") REFERENCES "DocumentType"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

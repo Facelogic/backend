@@ -18,6 +18,15 @@ export const USER_STATUS_LABELS: Record<number, string> = {
     2: 'Invitado',
 };
 
+// "Level" enum (Student.level, Schedule.level).
+export const LEVEL_LABELS: Record<string, string> = {
+    PRESCHOOL: 'Inicial',
+    PRIMARY: 'Primaria',
+    SECONDARY: 'Secundaria',
+};
+
+export const yesNo = (value: boolean) => (value ? 'Sí' : 'No');
+
 export const PHOTO_SERVICE_LABELS: Record<string, string> = {
     PENDING: 'Pendiente',
     ACTIVE: 'Activo',

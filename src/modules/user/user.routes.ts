@@ -10,6 +10,7 @@ router.get('/export', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), contro
 router.get('/:id', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.get);
 router.put('/:id', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.update);
 router.patch('/:id/status', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.changeStatus);
+router.post('/:id/invitation', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.resendInvitation);
 router.delete('/:id', authenticate, authorize('SUPERADMIN', 'APP_ADMIN'), controller.remove);
 
 export default router;

@@ -27,3 +27,15 @@ export async function logout(req: Request, res: Response) {
 export async function me(req: Request, res: Response) {
   res.status(200).json({ status: true, data: toPublic(req.user!) });
 }
+
+// Public: the "set password" page validates the token from the email link and shows who is invited.
+export async function getInvitation(req: Request, res: Response) {
+  const data = await authService.getInvitation(req.body?.token);
+  res.status(200).json({ status: true, data });
+}
+
+// Public: sets the password and activates the invited account. The user then logs in normally.
+export async function acceptInvitation(req: Request, res: Response) {
+  const data = await authService.acceptInvitation(req.body ?? {});
+  res.status(200).json({ status: true, data });
+}

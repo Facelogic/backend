@@ -21,14 +21,16 @@ export interface MediaAttributes {
   ownerId: string;
   schoolId: string;
   stationId: string | null;
+  serialCode: string;
 }
 
 export type MediaCreationAttributes = Optional<
   MediaAttributes,
-  'id' | 'status' | 'originalName' | 'sizeBytes' | 'checksumSha256' | 'width' | 'height' | 'durationMs' | 'variants' | 'stationId'
+  'id' | 'status' | 'originalName' | 'sizeBytes' | 'checksumSha256' | 'width' | 'height' | 'durationMs' | 'variants' | 'stationId' | 'serialCode'
 >;
 
 export interface MediaInstance extends Model<MediaAttributes, MediaCreationAttributes>, MediaAttributes {
+  readonly createdAt: Date;
   school?: NonAttribute<SchoolInstance>;
   owner?: NonAttribute<UserInstance>;
   station?: NonAttribute<StationInstance | null>;

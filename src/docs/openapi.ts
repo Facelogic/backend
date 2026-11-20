@@ -219,6 +219,8 @@ const openapi = {
     { name: 'Users', description: 'Gestión y exportación a Excel de usuarios (SUPERADMIN / APP_ADMIN)' },
     { name: 'Schools', description: 'Gestión, cambio de estado y exportación a Excel de colegios (solo SUPERADMIN)' },
     { name: 'Stations', description: 'Gestión, cambio de estado y exportación a Excel de estaciones (solo SUPERADMIN)' },
+    { name: 'Students', description: 'Gestión y exportación a Excel de estudiantes (SUPERADMIN: todos los colegios / APP_ADMIN: su colegio)' },
+    { name: 'Shifts', description: 'Turnos del personal del colegio de la sesión (SUPERADMIN indica schoolId)' },
     { name: 'Schedules', description: 'Horarios por nivel de cada colegio (solo SUPERADMIN)' },
     {
       name: 'School Settings',
@@ -258,8 +260,42 @@ const openapi = {
           roleId: { type: 'string', format: 'uuid' },
           role: { type: 'string', enum: ['SUPERADMIN', 'APP_ADMIN', 'DOOR_STAFF'], nullable: true },
           schoolId: { type: 'string', format: 'uuid', nullable: true },
+          school: {
+            type: 'object',
+            nullable: true,
+            description: 'Colegio del usuario (APP_ADMIN / DOOR_STAFF); null para SUPERADMIN',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string', example: 'Colegio San José' },
+              slug: { type: 'string', example: 'colegio-san-jose' },
+            },
+          },
           status: { type: 'integer', enum: [0, 1, 2], description: '0 = DISABLED, 1 = ACTIVE, 2 = INVITED' },
           lastLoginAt: nullableDate,
+        },
+      },
+      ValidateInvitationRequest: {
+        type: 'object',
+        required: ['token'],
+        properties: { token: { type: 'string', description: 'Token recibido en el enlace del correo (?token=...)' } },
+      },
+      InvitationInfo: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          role: nullableString(),
+          school: nullableString(),
+          expiresAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      AcceptInvitationRequest: {
+        type: 'object',
+        required: ['token', 'password'],
+        properties: {
+          token: { type: 'string', description: 'Token recibido en el enlace del correo (?token=...)' },
+          password: { type: 'string', format: 'password', minLength: 8 },
+          confirmPassword: { type: 'string', format: 'password', description: 'Opcional; si se envía debe coincidir con password' },
         },
       },
       LoginRequest: {
@@ -442,6 +478,100 @@ const openapi = {
         required: ['status'],
         properties: {
           status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
+        },
+      },
+      StudentListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          firstName: { type: 'string', example: 'Lucía' },
+          lastName: { type: 'string', example: 'Ramírez Torres' },
+          documentType: nullableString({ example: 'DNI' }),
+          document: nullableString({ example: '71234567' }),
+          level: { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY'] },
+          grade: { type: 'string', example: '3' },
+          section: nullableString({ example: 'A' }),
+          canLeaveAlone: { type: 'boolean' },
+          school: { type: 'string' },
+        },
+      },
+      StudentDetail: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          firstName: { type: 'string' },
+          lastName: { type: 'string' },
+          documentTypeId: nullableString({ format: 'uuid' }),
+          documentType: nullableString(),
+          document: nullableString(),
+          level: { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY'] },
+          grade: { type: 'string' },
+          section: nullableString(),
+          canLeaveAlone: { type: 'boolean' },
+          badgeCode: { type: 'string', example: 'EST-K7M2Q9XA' },
+          schoolId: { type: 'string', format: 'uuid' },
+          school: { type: 'string' },
+          createdDate: { type: 'string' },
+        },
+      },
+      StudentRequest: {
+        type: 'object',
+        description:
+          'En POST son obligatorios firstName, lastName, level y grade (y schoolId si es SUPERADMIN; APP_ADMIN usa su colegio). ' +
+          'En PUT solo se cambian los campos enviados (schoolId se ignora); null o vacío limpia los opcionales. ' +
+          'document es opcional; si se envía requiere documentTypeId y debe tener la longitud del tipo (DNI 8, ...).',
+        properties: {
+          firstName: { type: 'string', maxLength: 80, example: 'Lucía' },
+          lastName: { type: 'string', maxLength: 80, example: 'Ramírez Torres' },
+          documentTypeId: nullableString({ format: 'uuid' }),
+          document: nullableString({ maxLength: 12, example: '71234567' }),
+          level: {
+            type: 'string',
+            enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY', 'INICIAL', 'PRIMARIA', 'SECUNDARIA'],
+            description: 'Se guarda como PRESCHOOL / PRIMARY / SECONDARY',
+          },
+          grade: { type: 'string', maxLength: 20, example: '3' },
+          section: nullableString({ maxLength: 10, example: 'A' }),
+          canLeaveAlone: { type: 'boolean', default: false, description: 'Si puede salir solo del colegio' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN, solo en POST' },
+        },
+      },
+      ShiftItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Administrativo mañana' },
+          type: { type: 'string', enum: ['FIXED', 'FLEXIBLE'] },
+          startTime: nullableString({ example: '07:30' }),
+          endTime: nullableString({ example: '16:00' }),
+          includesBreak: { type: 'boolean' },
+          breakStart: nullableString({ example: '12:30' }),
+          breakEnd: nullableString({ example: '13:30' }),
+          breakDeductionMin: { type: 'integer', example: 45 },
+          graceMin: { type: 'integer', example: 10 },
+          countOvertime: { type: 'boolean' },
+        },
+      },
+      ShiftRequest: {
+        type: 'object',
+        required: ['name', 'type'],
+        description:
+          'El colegio se toma de la sesión (APP_ADMIN); SUPERADMIN debe enviar schoolId. ' +
+          'FLEXIBLE exige startTime y endTime (en FIXED son opcionales, pero van juntos). ' +
+          'Si includesBreak es true son obligatorios breakStart, breakEnd y breakDeductionMin; ' +
+          'el refrigerio debe estar dentro del horario y los minutos no pueden superar la duración del refrigerio.',
+        properties: {
+          name: { type: 'string', maxLength: 60, example: 'Administrativo mañana' },
+          type: { type: 'string', enum: ['FIXED', 'FLEXIBLE'] },
+          startTime: { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$', example: '07:30', description: 'Hora de entrada (HH:mm)' },
+          endTime: { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$', example: '16:00', description: 'Hora de salida (HH:mm)' },
+          includesBreak: { type: 'boolean', default: false, description: 'Incluye refrigerio' },
+          breakStart: { type: 'string', example: '12:30', description: 'Inicio del refrigerio (HH:mm)' },
+          breakEnd: { type: 'string', example: '13:30', description: 'Fin del refrigerio (HH:mm)' },
+          breakDeductionMin: { type: 'integer', minimum: 1, example: 45, description: 'Minutos de descanso que se descuentan' },
+          graceMin: { type: 'integer', minimum: 0, maximum: 240, default: 0, description: 'Tolerancia de tardanza (minutos)' },
+          countOvertime: { type: 'boolean', default: true, description: 'Contabilizar horas extras' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN' },
         },
       },
       ExportRow: {
@@ -706,8 +836,30 @@ const openapi = {
           ownerId: { type: 'string', format: 'uuid', description: 'Usuario que subió el archivo' },
           schoolId: { type: 'string', format: 'uuid', description: 'Colegio al que pertenece el archivo' },
           stationId: { type: 'string', format: 'uuid', nullable: true, description: 'Estación que capturó el archivo (opcional)' },
+          serialCode: { type: 'string', example: 'RC-20261119-000123', description: 'Código único autogenerado: RC + fecha de guardado (yyyymmdd) + número de 6 dígitos' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      MediaListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          thumbnailUrl: {
+            type: 'string',
+            format: 'uri',
+            nullable: true,
+            description:
+              'URL prefirmada (temporal) de la miniatura de la imagen o del poster del video; el original si aún no se procesó; null si está pending',
+          },
+          serialCode: { type: 'string', example: 'RC-20261119-000123', description: 'Código único: RC + fecha de guardado (yyyymmdd) + número de 6 dígitos' },
+          code: { type: 'string', example: 'CSJ20261119', description: 'Iniciales del colegio + fecha de guardado (yyyymmdd)' },
+          savedAt: { type: 'string', format: 'date-time', description: 'Fecha y hora de guardado' },
+          date: { type: 'string', example: '19/11/2026', description: 'Fecha de guardado (dd/mm/yyyy, hora de Lima)' },
+          time: { type: 'string', example: '14:35', description: 'Hora de guardado (HH:mm, hora de Lima)' },
+          school: { type: 'string', description: 'Nombre del colegio' },
+          station: { type: 'string', nullable: true, description: 'Nombre de la estación; null si no tiene' },
+          status: { type: 'string', enum: ['pending', 'uploaded', 'processing', 'ready', 'failed'] },
         },
       },
       MediaWithUrl: {
@@ -795,6 +947,35 @@ const openapi = {
       },
     },
 
+    '/api/auth/invitation/validate': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Validar invitación (público)',
+        description: 'Lo usa la página de establecer contraseña para comprobar el token del correo y mostrar a quién se invita.',
+        requestBody: { required: true, content: json('ValidateInvitationRequest') },
+        responses: {
+          200: ok('Invitación vigente', ref('InvitationInfo')),
+          400: errorResponse('Falta el token'),
+          404: errorResponse('Invitación inexistente'),
+          410: errorResponse('Invitación usada, expirada o usuario ya no invitado'),
+        },
+      },
+    },
+    '/api/auth/invitation/accept': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Aceptar invitación y establecer contraseña (público)',
+        description: 'Guarda la contraseña, activa la cuenta (status ACTIVE) y marca la invitación como usada. Luego el usuario inicia sesión con /api/auth/login.',
+        requestBody: { required: true, content: json('AcceptInvitationRequest') },
+        responses: {
+          200: ok('Cuenta activada', { type: 'object', properties: { email: { type: 'string', format: 'email' } } }),
+          400: errorResponse('Token faltante, contraseña corta o no coincide'),
+          404: errorResponse('Invitación inexistente'),
+          410: errorResponse('Invitación usada, expirada o usuario ya no invitado'),
+        },
+      },
+    },
+
     // ---- Users
     '/api/user': {
       get: {
@@ -821,10 +1002,29 @@ const openapi = {
       post: {
         tags: ['Users'],
         summary: 'Crear usuario',
+        description:
+          'El usuario se crea como INVITED (sin contraseña) y se le envía por Brevo un correo con el botón "Aceptar invitación", ' +
+          'que lleva a la página de establecer contraseña. `invitationSent` es false si el correo no se pudo enviar ' +
+          '(reintentar con POST /api/user/{id}/invitation).',
         security: bearer,
         requestBody: { required: true, content: json('CreateUserRequest') },
         responses: {
-          200: okId('Id del usuario creado'),
+          200: {
+            description: 'Id del usuario creado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['status', 'data', 'invitationSent'],
+                  properties: {
+                    status: { type: 'boolean', example: true },
+                    data: { type: 'string', format: 'uuid' },
+                    invitationSent: { type: 'boolean', example: true },
+                  },
+                },
+              },
+            },
+          },
           400: errorResponse('Datos inválidos, documento con longitud incorrecta o FK inexistente'),
           401: unauthorized,
           403: errorResponse('Rol sin permiso, intento de asignar el rol SUPERADMIN o colegio ajeno'),
@@ -919,6 +1119,26 @@ const openapi = {
           401: unauthorized,
           403: forbidden,
           404: errorResponse('Usuario no encontrado'),
+        },
+      },
+    },
+
+    '/api/user/{id}/invitation': {
+      post: {
+        tags: ['Users'],
+        summary: 'Reenviar correo de invitación',
+        description:
+          'Genera un nuevo enlace (el anterior deja de funcionar) y lo envía por correo. Solo para usuarios INVITED. ' +
+          'Un rol distinto de SUPERADMIN solo puede reenviar invitaciones de su colegio.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id del usuario'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Usuario no encontrado'),
+          409: errorResponse('El usuario ya activó su cuenta o está deshabilitado'),
+          502: errorResponse('No se pudo enviar el correo'),
         },
       },
     },
@@ -1053,6 +1273,190 @@ const openapi = {
     },
 
     // ---- Stations
+    // ---- Shifts
+    '/api/shifts': {
+      get: {
+        tags: ['Shifts'],
+        summary: 'Listar turnos del colegio (paginado)',
+        description: 'Turnos del colegio de la sesión, ordenados por nombre. SUPERADMIN debe indicar `schoolId`.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre (sin distinguir mayúsculas)'),
+          query('type', { type: 'string', enum: ['FIXED', 'FLEXIBLE'] }, 'Tipo de turno'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio (obligatorio y solo para SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de turnos', ref('ShiftItem')),
+          400: errorResponse('Filtro, paginación o schoolId inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Shifts'],
+        summary: 'Registrar turno',
+        security: bearer,
+        requestBody: { required: true, content: json('ShiftRequest') },
+        responses: {
+          201: okId('Id del turno creado'),
+          400: errorResponse('Datos inválidos (horas, refrigerio, tolerancia) o colegio inexistente'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          409: errorResponse('Ya existe un turno con ese nombre en el colegio'),
+        },
+      },
+    },
+
+    '/api/shifts/{id}': {
+      get: {
+        tags: ['Shifts'],
+        summary: 'Obtener turno',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Turno', ref('ShiftItem')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Turno no encontrado (o de otro colegio)'),
+        },
+      },
+      put: {
+        tags: ['Shifts'],
+        summary: 'Actualizar turno',
+        description:
+          'Solo se cambian los campos enviados; el resultado se valida con las mismas reglas que al crear ' +
+          '(p. ej. pasar a FLEXIBLE exige horas; includesBreak false borra el refrigerio). schoolId se ignora.',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('ShiftRequest') },
+        responses: {
+          200: okId('Id del turno actualizado'),
+          400: errorResponse('Datos inválidos (horas, refrigerio, tolerancia)'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Turno no encontrado (o de otro colegio)'),
+          409: errorResponse('Ya existe un turno con ese nombre en el colegio'),
+        },
+      },
+      delete: {
+        tags: ['Shifts'],
+        summary: 'Eliminar turno',
+        description: 'Eliminación definitiva. No se permite si hay personal asignado al turno.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id del turno eliminado'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Turno no encontrado (o de otro colegio)'),
+          409: errorResponse('El turno tiene personal asignado'),
+        },
+      },
+    },
+
+    // ---- Students
+    '/api/students': {
+      get: {
+        tags: ['Students'],
+        summary: 'Listar estudiantes (paginado)',
+        description:
+          'Solo estudiantes activos, ordenados por apellidos y nombres. Un SUPERADMIN ve todos los colegios; ' +
+          'otro rol solo el suyo (el filtro `schoolId` se ignora).',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte de los nombres, apellidos o nombre completo (sin distinguir mayúsculas)'),
+          query('level', { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY', 'INICIAL', 'PRIMARIA', 'SECUNDARIA'] }, 'Nivel'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de estudiantes', ref('StudentListItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Students'],
+        summary: 'Registrar estudiante',
+        description: 'El código de carné (`badgeCode`) se genera automáticamente.',
+        security: bearer,
+        requestBody: { required: true, content: json('StudentRequest') },
+        responses: {
+          201: okId('Id del estudiante creado'),
+          400: errorResponse('Datos inválidos, documento con longitud incorrecta o FK inexistente'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          409: errorResponse('Documento ya registrado en el colegio'),
+        },
+      },
+    },
+    '/api/students/export': {
+      get: {
+        tags: ['Students'],
+        summary: 'Exportar estudiantes (Excel)',
+        description:
+          'Todos los estudiantes que cumplen los filtros, sin paginar, como filas planas listas para una hoja de Excel. ' +
+          'Mismas reglas que el listado. Columnas: Apellidos, Nombres, Tipo de documento, Documento, Nivel, Grado, Sección, ' +
+          'Puede salir solo, Código de carné, Colegio, Fecha de registro.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte de los nombres, apellidos o nombre completo'),
+          query('level', { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY', 'INICIAL', 'PRIMARIA', 'SECUNDARIA'] }, 'Nivel'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+        ],
+        responses: {
+          200: ok('Filas ordenadas por apellidos y nombres', { type: 'array', items: ref('ExportRow') }),
+          400: errorResponse('Filtro inválido'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+    },
+    '/api/students/{id}': {
+      get: {
+        tags: ['Students'],
+        summary: 'Obtener estudiante',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Estudiante', ref('StudentDetail')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estudiante no encontrado (o de otro colegio)'),
+        },
+      },
+      put: {
+        tags: ['Students'],
+        summary: 'Actualizar estudiante',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('StudentRequest') },
+        responses: {
+          200: okId('Id del estudiante actualizado'),
+          400: errorResponse('Datos inválidos, documento con longitud incorrecta o FK inexistente'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estudiante no encontrado (o de otro colegio)'),
+          409: errorResponse('Documento ya registrado en el colegio'),
+        },
+      },
+      delete: {
+        tags: ['Students'],
+        summary: 'Eliminar estudiante (soft delete)',
+        description: 'Lo marca como inactivo: deja de aparecer en el listado y la exportación; su historial se conserva.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id del estudiante eliminado'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Estudiante no encontrado (o de otro colegio)'),
+        },
+      },
+    },
+
     '/api/stations': {
       get: {
         tags: ['Stations'],
@@ -1397,6 +1801,29 @@ const openapi = {
 
     // ---- Media (respuestas sin envoltorio { status, data })
     '/api/media': {
+      get: {
+        tags: ['Media'],
+        summary: 'Listar media (paginado)',
+        security: bearer,
+        description:
+          'A diferencia del resto de /api/media, responde con el envoltorio `{ status, data, pagination }`. ' +
+          'Ordenado del más reciente al más antiguo. Un usuario que no es SUPERADMIN solo ve los archivos de su colegio (se ignora schoolId).',
+        parameters: [
+          query('serialCode', { type: 'string' }, 'Parte del código (sin distinguir mayúsculas), ej. RC-20261119'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Solo SUPERADMIN: colegio exacto'),
+          query('stationId', { type: 'string', format: 'uuid' }, 'Estación exacta'),
+          query('dateFrom', { type: 'string', format: 'date', example: '2026-11-01' }, 'Fecha de guardado desde (yyyy-mm-dd, hora de Lima, inclusive)'),
+          query('dateTo', { type: 'string', format: 'date', example: '2026-11-30' }, 'Fecha de guardado hasta (yyyy-mm-dd, hora de Lima, inclusive)'),
+          query('status', { type: 'string', enum: ['pending', 'uploaded', 'processing', 'ready', 'failed'] }, 'Estado'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de media ordenada por fecha de guardado (desc)', ref('MediaListItem')),
+          400: errorResponse('Filtro o paginación inválidos (uuid, fecha yyyy-mm-dd, dateFrom > dateTo, status)'),
+          401: unauthorized,
+          403: errorResponse('Cuenta sin colegio asignado'),
+        },
+      },
       post: {
         tags: ['Media'],
         summary: 'Subir archivo (multipart/form-data)',

@@ -12,7 +12,8 @@ export default function defineStudent(sequelize: Sequelize) {
       schoolId: { type: DataTypes.UUID, allowNull: false },
       firstName: { type: DataTypes.STRING(80), allowNull: false },
       lastName: { type: DataTypes.STRING(80), allowNull: false },
-      nationalId: DataTypes.CHAR(8),
+      documentTypeId: DataTypes.UUID,
+      document: DataTypes.STRING(12),
       level: { type: DataTypes.ENUM(...Level), allowNull: false },
       grade: { type: DataTypes.STRING(20), allowNull: false },
       section: DataTypes.STRING(10),
@@ -27,6 +28,7 @@ export default function defineStudent(sequelize: Sequelize) {
   return Object.assign(Student, {
     associate(models: Models) {
       Student.belongsTo(models.School, { foreignKey: 'schoolId', as: 'school' });
+      Student.belongsTo(models.DocumentType, { foreignKey: 'documentTypeId', as: 'documentType' });
       Student.hasMany(models.Authorization, { foreignKey: 'studentId', as: 'authorizations' });
       Student.hasMany(models.Arrival, { foreignKey: 'studentId', as: 'arrivals' });
       Student.hasMany(models.Pickup, { foreignKey: 'studentId', as: 'pickups' });

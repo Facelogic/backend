@@ -43,6 +43,21 @@ export async function confirmUpload(req: Request<{ id: string }>, res: Response)
   res.json(media);
 }
 
+export async function list(req: Request, res: Response) {
+  const { serialCode, schoolId, stationId, dateFrom, dateTo, status, page, pageSize } = req.query;
+  const { items, pagination } = await mediaService.list(req.user, {
+    serialCode,
+    schoolId,
+    stationId,
+    dateFrom,
+    dateTo,
+    status,
+    page,
+    pageSize,
+  });
+  res.status(200).json({ status: true, data: items, pagination });
+}
+
 export async function getOne(req: Request<{ id: string }>, res: Response) {
   const { media, url } = await mediaService.getWithUrl(req.params.id, req.user);
   res.json({ ...media.toJSON(), url });
