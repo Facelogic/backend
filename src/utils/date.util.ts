@@ -45,6 +45,15 @@ export const limaCompactDate = (date: Date) => {
     return `${yyyy}${mm}${dd}`;
 };
 
+// yyyy-mm-dd in Lima (the format of DATE columns), e.g. 2026-11-19.
+export const limaIsoDate = (date: Date) => {
+    const { yyyy, mm, dd } = limaParts(date);
+    return `${yyyy}-${mm}-${dd}`;
+};
+
+// A Lima day ("yyyy-mm-dd") + a time ("HH:mm") -> that instant.
+export const limaInstant = (day: string, time: string) => new Date(`${day}T${time}:00${LIMA_OFFSET}`);
+
 // "yyyy-mm-dd" (a day in Lima) -> the instant that day starts. null when the text isn't a real date.
 export function limaDayStart(text: string): Date | null {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;

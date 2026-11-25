@@ -3,6 +3,7 @@ import type { Model, NonAttribute, Optional } from 'sequelize';
 import type { ShiftType } from '../../db/models/enums.ts';
 import type { SchoolInstance } from './school.interface.ts';
 import type { StaffInstance } from './staff.interface.ts';
+import type { TimeEntryInstance } from './time-entry.interface.ts';
 
 export interface ShiftAttributes {
   id: string;
@@ -25,4 +26,5 @@ export type ShiftCreationAttributes = Optional<ShiftAttributes, 'id' | 'startTim
 export interface ShiftInstance extends Model<ShiftAttributes, ShiftCreationAttributes>, ShiftAttributes {
   school?: NonAttribute<SchoolInstance>;
   staff?: NonAttribute<StaffInstance[]>;
+  timeEntries?: NonAttribute<TimeEntryInstance[]>;
 }

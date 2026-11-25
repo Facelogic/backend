@@ -240,21 +240,22 @@ export async function create(input: SchoolInput): Promise<string> {
 
     try {
         // parseInput(_, false) already required slug, name, modularCode, taxId, region, province and district.
-        // The school and its default settings row are created together.
+        // The school, its default settings row and its schedules are created together. Each schedule is linked to
+        // the classrooms of the school with the same level (none yet on a new school; classrooms created later get
+        // them from classroomService, see scheduleService.syncClassroomLinks).
         const school = await sequelize.transaction(async (transaction) => {
             const created = await School.create(data as SchoolCreationAttributes, { transaction });
             await schoolSettingsService.createDefault(created.id, transaction);
+            if (Array.isArray(body.schedules) && body.schedules.length) {
+                const schedules = (body.schedules as ScheduleInput[]).map((schedule) => ({
+                    ...schedule,
+                    schoolId: created.id,
+                }));
+                await scheduleService.bulkCreate(schedules, transaction);
+            }
             return created;
         });
 
-        if (Array.isArray(body.schedules) && body.schedules.length) {
-            const schedules = (body.schedules as ScheduleInput[]).map((schedule) => ({
-                ...schedule,
-                schoolId: school.id,
-            }));
-            await scheduleService.bulkCreate(schedules);
-        }
-        
         return school.id;
     } catch (err) {
         handleWriteError(err);

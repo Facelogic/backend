@@ -2,6 +2,12 @@ import type { ShiftType } from "../db/models/enums.ts";
 import type { PaginationQuery } from "../utils/pagination.util.ts";
 
 // Item of GET /api/shifts.
+// Item of GET /api/shifts/simple.
+export interface ShiftSimpleItem {
+    id: string;
+    name: string;
+}
+
 export interface ShiftItem {
     id: string;
     name: string;

@@ -1,5 +1,5 @@
 import { parsePagination, toPaginated, type Paginated } from "../../utils/pagination.util.ts";
-import { ForeignKeyConstraintError, Op, UniqueConstraintError, type WhereOptions } from "sequelize";
+import { ForeignKeyConstraintError, Op, UniqueConstraintError, type Transaction, type WhereOptions } from "sequelize";
 import { UserStatus } from "../../constants/user-status.ts";
 import { DocumentType, Role, School, sequelize, Session, User } from "../../db/models/index.ts";
 import { isValidEmail, normalizeEmail } from "../../helper/auth.helper.ts";
@@ -7,7 +7,7 @@ import { parsePhone } from "../../helper/phone.helper.ts";
 import { dateOrEmpty, textOrEmpty, USER_STATUS_LABELS, type ExportRow } from "../../helper/export.helper.ts";
 import { toUserStatusKey } from "../../helper/user.helper.ts";
 import { issueInvitation } from "../../helper/invitation.helper.ts";
-import type { UserAttributes, UserInstance } from "../../interfaces/models/user.interface.ts";
+import type { UserAttributes, UserCreationAttributes, UserInstance } from "../../interfaces/models/user.interface.ts";
 import type { CreateUserInput, UpdateUserInput, UserItem, UserDetail, UserListFilters, UserStatusInput } from "../../interfaces/user.interface.ts";
 import { formattedDate } from "../../utils/date.util.ts";
 import HttpError from "../../utils/http-error.ts";
@@ -42,11 +42,15 @@ async function checkDocumentLength(document: string, documentTypeId: string): Pr
     if (document.length !== type.size) throw new HttpError(400, `${type.name} debe tener ${type.size} caracteres`);
 }
 
-// Required: name (full name), email, documentTypeId, document, roleId and schoolId. Optional: phone and position.
-// A non-SUPERADMIN can only create users for its own school.
-// The user starts as INVITED (no password) and gets an email to set its password. If the email can't be
-// sent the user is kept and invitationSent is false: it can be resent with POST /api/user/:id/invitation.
-export async function create(input: CreateUserInput, currentUser?: UserInstance): Promise<{ id: string; invitationSent: boolean }> {
+// Validates the body of a new user and returns the data to insert (status INVITED, no password).
+// Required: name (full name), email, documentTypeId, document, roleId and schoolId. Optional: phone and position
+// (requirePosition makes position mandatory). A non-SUPERADMIN can only create users for its own school.
+// Shared by POST /api/user and POST /api/staff.
+export async function parseNewUser(
+    input: CreateUserInput,
+    currentUser?: UserInstance,
+    { requirePosition = false }: { requirePosition?: boolean } = {},
+): Promise<UserCreationAttributes> {
     if (!currentUser) throw new HttpError(401, 'No autenticado');
 
     const name = String(input.name ?? '').trim();
@@ -74,10 +78,15 @@ export async function create(input: CreateUserInput, currentUser?: UserInstance)
 
     const phone = parsePhone(input.phone);
     const position = parsePosition(input.position);
+    if (requirePosition && !position) throw new HttpError(400, 'El cargo (position) es obligatorio');
 
-    let user: UserInstance;
+    return { name, email, documentTypeId, document, phone, position, roleId, schoolId, status: UserStatus.INVITED };
+}
+
+// Inserts a user validated by parseNewUser, translating constraint errors into HTTP errors.
+export async function insertUser(data: UserCreationAttributes, transaction?: Transaction): Promise<UserInstance> {
     try {
-        user = await User.create({ name, email, documentTypeId, document, phone, position, roleId, schoolId, status: UserStatus.INVITED });
+        return await User.create(data, { transaction });
     } catch (err) {
         if (err instanceof UniqueConstraintError) {
             const field = err.errors[0]?.path;
@@ -86,14 +95,25 @@ export async function create(input: CreateUserInput, currentUser?: UserInstance)
         if (err instanceof ForeignKeyConstraintError) throw new HttpError(400, 'Rol, colegio o tipo de documento no encontrado');
         throw new HttpError(500, (err as Error).message);
     }
+}
 
+// Emails the invitation to set the password; false when it couldn't be sent (the user is kept and the
+// invitation can be resent with POST /api/user/:id/invitation).
+export async function sendInvitation(user: UserInstance): Promise<boolean> {
     try {
         await issueInvitation(user);
-        return { id: user.id, invitationSent: true };
+        return true;
     } catch (err) {
         console.error(`No se pudo enviar la invitación al usuario ${user.id}:`, err);
-        return { id: user.id, invitationSent: false };
+        return false;
     }
+}
+
+// The user starts as INVITED (no password) and gets an email to set its password. If the email can't be
+// sent the user is kept and invitationSent is false: it can be resent with POST /api/user/:id/invitation.
+export async function create(input: CreateUserInput, currentUser?: UserInstance): Promise<{ id: string; invitationSent: boolean }> {
+    const user = await insertUser(await parseNewUser(input, currentUser));
+    return { id: user.id, invitationSent: await sendInvitation(user) };
 }
 
 // Sends a new invitation email (the previous link stops working). Only for users still INVITED.

@@ -21,6 +21,21 @@ export default function defineSchedule(sequelize: Sequelize) {
     return Object.assign(Schedule, {
         associate(models: Models) {
             Schedule.belongsTo(models.School, { foreignKey: 'schoolId', as: 'school' });
+            Schedule.hasMany(models.ClassroomSchedule, { foreignKey: 'scheduleId', as: 'classroomSchedules' });
+            // Many-to-many with Classroom through "ClassroomSchedule" (both sides declared here because
+            // classroom.ts is generated).
+            Schedule.belongsToMany(models.Classroom, {
+                through: models.ClassroomSchedule,
+                foreignKey: 'scheduleId',
+                otherKey: 'classroomId',
+                as: 'classrooms',
+            });
+            models.Classroom.belongsToMany(Schedule, {
+                through: models.ClassroomSchedule,
+                foreignKey: 'classroomId',
+                otherKey: 'scheduleId',
+                as: 'schedules',
+            });
         },
     });
 }

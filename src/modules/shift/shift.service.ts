@@ -1,16 +1,28 @@
 import { ForeignKeyConstraintError, Op, UniqueConstraintError, type WhereOptions } from "sequelize";
 import { ShiftType } from "../../db/models/enums.ts";
-import { Shift, Staff } from "../../db/models/index.ts";
+import { Shift, Staff, TimeEntry } from "../../db/models/index.ts";
 import { isSuperadmin, resolveSchoolId } from "../../helper/school-scope.helper.ts";
 import type { ShiftAttributes, ShiftCreationAttributes, ShiftInstance } from "../../interfaces/models/shift.interface.ts";
 import type { UserInstance } from "../../interfaces/models/user.interface.ts";
-import type { ShiftInput, ShiftItem, ShiftListFilters } from "../../interfaces/shift.interface.ts";
+import type { ShiftInput, ShiftItem, ShiftListFilters, ShiftSimpleItem } from "../../interfaces/shift.interface.ts";
 import HttpError from "../../utils/http-error.ts";
 import { parsePagination, toPaginated, type Paginated } from "../../utils/pagination.util.ts";
 import { parseBoolean, parseInteger, parseTime } from "../../utils/parse.util.ts";
 import { containsPattern, isUuid } from "../../utils/text.util.ts";
 
 const MAX_GRACE_MIN = 240;
+
+// Every shift of one school, only id and name (for selects/filters; Shift has no status column).
+// APP_ADMIN / DOOR_STAFF always get their own school; a SUPERADMIN must send schoolId.
+export async function listSimple(schoolIdParam: unknown, currentUser?: UserInstance): Promise<ShiftSimpleItem[]> {
+    const schoolId = resolveSchoolId(currentUser, schoolIdParam);
+    return Shift.findAll({
+        where: { schoolId },
+        attributes: ['id', 'name'],
+        order: [['name', 'ASC'], ['id', 'ASC']],
+        raw: true,
+    });
+}
 
 const isBlank = (value: unknown) => value === undefined || value === null || String(value).trim() === '';
 
@@ -149,16 +161,19 @@ export async function update(id: string, input: ShiftInput, currentUser?: UserIn
     }
 }
 
-// Hard delete (Shift has no status column). Refused while staff members are assigned to the shift.
+// Hard delete (Shift has no status column). Refused while staff members are assigned to the shift or it has
+// attendance records ("TimeEntry"."shiftId").
 export async function remove(id: string, currentUser?: UserInstance): Promise<void> {
     const shift = await findManageable(id, currentUser);
     const assigned = await Staff.count({ where: { shiftId: shift.id } });
     if (assigned) throw new HttpError(409, `No se puede eliminar: el turno tiene ${assigned} miembro(s) del personal asignado(s)`);
+    const entries = await TimeEntry.count({ where: { shiftId: shift.id } });
+    if (entries) throw new HttpError(409, `No se puede eliminar: el turno tiene ${entries} asistencia(s) registrada(s)`);
 
     try {
         await shift.destroy();
     } catch (err) {
-        if (err instanceof ForeignKeyConstraintError) throw new HttpError(409, 'No se puede eliminar: el turno tiene personal asignado');
+        if (err instanceof ForeignKeyConstraintError) throw new HttpError(409, 'No se puede eliminar: el turno tiene personal o asistencias asociadas');
         throw new HttpError(500, (err as Error).message);
     }
 }

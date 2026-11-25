@@ -12,6 +12,12 @@ export interface StationListItem {
     status: keyof typeof StationStatus;
 }
 
+// Item of GET /api/stations/simple.
+export interface StationSimpleItem {
+    id: string;
+    name: string;
+}
+
 // GET /api/stations/:id.
 export interface StationItem {
     id: string;

@@ -8,13 +8,9 @@ export default function defineStaff(sequelize: Sequelize) {
     'Staff',
     {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
-      schoolId: { type: DataTypes.UUID, allowNull: false },
-      nationalId: { type: DataTypes.CHAR(8), allowNull: false },
-      name: { type: DataTypes.STRING(120), allowNull: false },
-      position: { type: DataTypes.STRING(80), allowNull: false },
+      userId: { type: DataTypes.UUID, allowNull: false, unique: true },
       department: { type: DataTypes.STRING(60), allowNull: false },
       shiftId: DataTypes.UUID,
-      email: DataTypes.STRING(160),
       active: { type: DataTypes.BOOLEAN, defaultValue: true, allowNull: false },
     },
     { tableName: 'Staff' },
@@ -22,8 +18,9 @@ export default function defineStaff(sequelize: Sequelize) {
 
   return Object.assign(Staff, {
     associate(models: Models) {
-      Staff.belongsTo(models.School, { foreignKey: 'schoolId', as: 'school' });
       Staff.belongsTo(models.Shift, { foreignKey: 'shiftId', as: 'shift' });
+      Staff.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
+      Staff.hasMany(models.Classroom, { foreignKey: 'staffId', as: 'classrooms' });
       Staff.hasMany(models.TimeEntry, { foreignKey: 'staffId', as: 'timeEntries' });
       Staff.hasOne(models.FaceEnrollment, { foreignKey: 'staffId', as: 'faceEnrollment' });
     },

@@ -3,7 +3,9 @@ import { ForeignKeyConstraintError, Op, UniqueConstraintError, type WhereOptions
 import { StationStatus } from "../../constants/station-status.ts";
 import { School, Station } from "../../db/models/index.ts";
 import type { StationAttributes, StationCreationAttributes, StationInstance } from "../../interfaces/models/station.interface.ts";
-import type { StationInput, StationItem, StationListFilters, StationListItem, StationStatusInput } from "../../interfaces/station.interface.ts";
+import type { StationInput, StationItem, StationListFilters, StationListItem, StationSimpleItem, StationStatusInput } from "../../interfaces/station.interface.ts";
+import type { UserInstance } from "../../interfaces/models/user.interface.ts";
+import { resolveSchoolId } from "../../helper/school-scope.helper.ts";
 import { dateOrEmpty, statusLabel, textOrEmpty, type ExportRow } from "../../helper/export.helper.ts";
 import { formattedDate } from "../../utils/date.util.ts";
 import HttpError from "../../utils/http-error.ts";
@@ -134,6 +136,18 @@ export async function list(filters: StationListFilters = {}): Promise<Paginated<
         offset,
     });
     return toPaginated(rows.map(toListItem), count, page, pageSize);
+}
+
+// Active stations of one school, only id and name (for selects/filters). APP_ADMIN / DOOR_STAFF always get
+// their own school; a SUPERADMIN must send schoolId.
+export async function listSimple(schoolIdParam: unknown, currentUser?: UserInstance): Promise<StationSimpleItem[]> {
+    const schoolId = resolveSchoolId(currentUser, schoolIdParam);
+    return Station.findAll({
+        where: { schoolId, status: StationStatus.ACTIVE },
+        attributes: ['id', 'name'],
+        order: [['name', 'ASC'], ['id', 'ASC']],
+        raw: true,
+    });
 }
 
 export async function get(id: string): Promise<StationItem> {

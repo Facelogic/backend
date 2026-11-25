@@ -12,6 +12,7 @@ import type { ReportDownloadInstance } from './report-download.interface.ts';
 import type { RoleInstance } from './role.interface.ts';
 import type { SchoolInstance } from './school.interface.ts';
 import type { SessionInstance } from './session.interface.ts';
+import type { StaffInstance } from './staff.interface.ts';
 import type { TimeEntryInstance } from './time-entry.interface.ts';
 
 export interface UserAttributes {
@@ -44,6 +45,7 @@ export interface UserInstance extends Model<UserAttributes, UserCreationAttribut
   documentType?: NonAttribute<DocumentTypeInstance>;
   sessions?: NonAttribute<SessionInstance[]>;
   invitations?: NonAttribute<InvitationInstance[]>;
+  staff?: NonAttribute<StaffInstance>;
   recordedTimeEntries?: NonAttribute<TimeEntryInstance[]>;
   recordedPickups?: NonAttribute<PickupInstance[]>;
   resolvedAlerts?: NonAttribute<AlertInstance[]>;

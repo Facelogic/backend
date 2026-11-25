@@ -7,6 +7,11 @@ export async function list(req: Request, res: Response) {
     res.status(200).json({ status: true, data: items, pagination });
 }
 
+export async function listSimple(req: Request, res: Response) {
+    const items = await stationService.listSimple(req.query.schoolId, req.user);
+    res.status(200).json({ status: true, data: items });
+}
+
 export async function get(req: Request<{ id: string }>, res: Response) {
     const item = await stationService.get(req.params.id);
     res.status(200).json({ status: true, data: item });

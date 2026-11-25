@@ -5,10 +5,21 @@ import type { UserInstance } from '../interfaces/models/user.interface.ts';
 import { sendInvitationEmail } from '../services/mail/index.ts';
 import { generateToken, hashToken } from './auth.helper.ts';
 
-// Link to the frontend "set password" form, with the raw token as ?token=...
+// Link to the frontend "set password" form, with the raw token in the fragment.
+// Browsers never send the fragment to a server, so the token stays out of server logs and Referer headers.
+// - History router (no # in the URL):  .../establecer-contrasena#token=...
+// - Hash router (#/route in the URL):   .../#/establecer-contrasena?token=... (the router reads it as a query param)
 export function buildAcceptUrl(token: string): string {
   const url = new URL(config.invitation.acceptUrl);
-  url.searchParams.set('token', token);
+  const hash = url.hash.slice(1);
+  if (!hash) {
+    url.hash = new URLSearchParams({ token }).toString();
+    return url.toString();
+  }
+  const [route, query = ''] = hash.split(/\?(.*)/s);
+  const params = new URLSearchParams(query);
+  params.set('token', token);
+  url.hash = `${route}?${params.toString()}`;
   return url.toString();
 }
 

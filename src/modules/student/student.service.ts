@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { col, fn, ForeignKeyConstraintError, Op, UniqueConstraintError, where as sqlWhere, type WhereOptions } from "sequelize";
-import { Level } from "../../db/models/enums.ts";
 import { DocumentType, School, Student } from "../../db/models/index.ts";
 import { dateOrEmpty, LEVEL_LABELS, textOrEmpty, yesNo, type ExportRow } from "../../helper/export.helper.ts";
 import type { StudentAttributes, StudentCreationAttributes, StudentInstance } from "../../interfaces/models/student.interface.ts";
@@ -12,6 +11,7 @@ import { parsePagination, toPaginated, type Paginated } from "../../utils/pagina
 import { containsPattern, isUuid } from "../../utils/text.util.ts";
 import { parseBoolean } from "../../utils/parse.util.ts";
 import { isSuperadmin, resolveSchoolId } from "../../helper/school-scope.helper.ts";
+import { parseLevel } from "../../helper/level.helper.ts";
 
 type StudentChanges = Partial<Omit<StudentAttributes, 'id' | 'createdAt' | 'updatedAt'>>;
 
@@ -22,22 +22,6 @@ const TEXT_FIELDS = {
     grade: { max: 20, required: true },
     section: { max: 10, required: false },
 } as const satisfies Record<string, { max: number; required: boolean }>;
-
-// The level can be sent as the enum value or in Spanish: PRESCHOOL | INICIAL, PRIMARY | PRIMARIA, SECONDARY | SECUNDARIA.
-const LEVEL_ALIASES: Record<string, Level> = {
-    PRESCHOOL: 'PRESCHOOL',
-    INICIAL: 'PRESCHOOL',
-    PRIMARY: 'PRIMARY',
-    PRIMARIA: 'PRIMARY',
-    SECONDARY: 'SECONDARY',
-    SECUNDARIA: 'SECONDARY',
-};
-
-function parseLevel(value: unknown): Level {
-    const level = LEVEL_ALIASES[String(value ?? '').trim().toUpperCase()];
-    if (!level) throw new HttpError(400, `level debe ser uno de ${Level.join(', ')} (o INICIAL, PRIMARIA, SECUNDARIA)`);
-    return level;
-}
 
 // Validates the fields present in the body. With partial = false (create) the required ones must be there.
 function parseInput(input: StudentInput, partial: boolean): StudentChanges {

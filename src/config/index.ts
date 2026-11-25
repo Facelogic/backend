@@ -43,7 +43,7 @@ export default {
     senderName: env.MAIL_SENDER_NAME || 'Facelogic',
   },
   invitation: {
-    // Frontend page with the "set your password" form; the token is appended as ?token=...
+    // Frontend page with the "set your password" form; the token goes in the fragment (#token=..., or #/route?token=... for a hash router)
     acceptUrl: env.INVITATION_ACCEPT_URL || 'http://localhost:5173/establecer-contrasena',
     ttlHours: Number(env.INVITATION_TTL_HOURS) || 72,
   },

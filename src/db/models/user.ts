@@ -36,6 +36,7 @@ export default function defineUser(sequelize: Sequelize) {
       User.belongsTo(models.DocumentType, { foreignKey: 'documentTypeId', as: 'documentType' });
       User.hasMany(models.Session, { foreignKey: 'userId', as: 'sessions' });
       User.hasMany(models.Invitation, { foreignKey: 'userId', as: 'invitations' });
+      User.hasOne(models.Staff, { foreignKey: 'userId', as: 'staff' });
       User.hasMany(models.TimeEntry, { foreignKey: 'recordedById', as: 'recordedTimeEntries' });
       User.hasMany(models.Pickup, { foreignKey: 'recordedById', as: 'recordedPickups' });
       User.hasMany(models.Alert, { foreignKey: 'resolvedById', as: 'resolvedAlerts' });

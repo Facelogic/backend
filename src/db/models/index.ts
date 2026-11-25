@@ -31,6 +31,8 @@ import defineShift from './shift.ts';
 import defineStaff from './staff.ts';
 import defineStation from './station.ts';
 import defineStudent from './student.ts';
+import defineClassroom from './classroom.ts';
+import defineClassroomSchedule from './classroom-schedule.ts';
 import defineTimeEntry from './time-entry.ts';
 import defineUser from './user.ts';
 import defineSchedule from './schedule.ts';
@@ -52,6 +54,8 @@ const models = {
   Session: defineSession(sequelize),
   Schedule: defineSchedule(sequelize),
   Invitation: defineInvitation(sequelize),
+  Classroom: defineClassroom(sequelize),
+  ClassroomSchedule: defineClassroomSchedule(sequelize),
   Student: defineStudent(sequelize),
   Guardian: defineGuardian(sequelize),
   Authorization: defineAuthorization(sequelize),
@@ -90,6 +94,8 @@ export const {
   User,
   Session,
   Invitation,
+  Classroom,
+  ClassroomSchedule,
   Student,
   Guardian,
   Authorization,

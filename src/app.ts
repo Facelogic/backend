@@ -23,6 +23,11 @@ import studentRoutes from './modules/student/student.routes.ts';
 import shiftRoutes from './modules/shift/shift.routes.ts';
 import faceParametersRoutes from './modules/face-parameters/face-parameters.routes.ts';
 import schoolSettingsRoutes from './modules/school-settings/school-settings.routes.ts';
+import pickupRoutes from './modules/pickup/pickup.routes.ts';
+import attendanceRoutes from './modules/attendance/attendance.routes.ts';
+import staffRoutes from './modules/staff/staff.routes.ts';
+import enrollmentRoutes from './modules/enrollment/enrollment.routes.ts';
+import classroomRoutes from './modules/classroom/classroom.routes.ts';
 
 const app = express();
 const options = {
@@ -73,6 +78,11 @@ app.use('/api/students', studentRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/face-parameters', faceParametersRoutes);
 app.use('/api/school-settings', schoolSettingsRoutes);
+app.use('/api/pickups', pickupRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/classrooms', classroomRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Recurso no encontrado' });

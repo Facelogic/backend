@@ -7,6 +7,11 @@ export async function list(req: Request, res: Response) {
     res.status(200).json({ status: true, data: items, pagination });
 }
 
+export async function listSimple(req: Request, res: Response) {
+    const items = await shiftService.listSimple(req.query.schoolId, req.user);
+    res.status(200).json({ status: true, data: items });
+}
+
 export async function create(req: Request, res: Response) {
     const id = await shiftService.create(req.body ?? {}, req.user);
     res.status(201).json({ status: true, data: id });

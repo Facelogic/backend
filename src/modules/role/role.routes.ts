@@ -5,5 +5,6 @@ import { authenticate } from '../../middlewares/auth.ts';
 const router = Router();
 
 router.get('/', authenticate, controller.list);
+router.get('/staff', authenticate, controller.listStaff);
 
 export default router;

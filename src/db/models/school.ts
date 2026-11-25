@@ -37,9 +37,9 @@ export default function defineSchool(sequelize: Sequelize) {
       School.hasMany(models.Station, { foreignKey: 'schoolId', as: 'stations' });
       School.hasMany(models.User, { foreignKey: 'schoolId', as: 'users' });
       School.hasMany(models.Student, { foreignKey: 'schoolId', as: 'students' });
+      School.hasMany(models.Classroom, { foreignKey: 'schoolId', as: 'classrooms' });
       School.hasMany(models.Guardian, { foreignKey: 'schoolId', as: 'guardians' });
       School.hasMany(models.Shift, { foreignKey: 'schoolId', as: 'shifts' });
-      School.hasMany(models.Staff, { foreignKey: 'schoolId', as: 'staff' });
       School.hasMany(models.TimeEntry, { foreignKey: 'schoolId', as: 'timeEntries' });
       School.hasMany(models.FaceEnrollment, { foreignKey: 'schoolId', as: 'faceEnrollments' });
       School.hasMany(models.Arrival, { foreignKey: 'schoolId', as: 'arrivals' });

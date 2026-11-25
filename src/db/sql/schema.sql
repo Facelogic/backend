@@ -191,6 +191,7 @@ CREATE TABLE "Student" (
     "level" "Level" NOT NULL,
     "grade" VARCHAR(20) NOT NULL,
     "section" VARCHAR(10),
+    "classroomId" UUID,
     "badgeCode" VARCHAR(30) NOT NULL,
     "badgeVersion" INTEGER NOT NULL DEFAULT 1,
     "canLeaveAlone" BOOLEAN NOT NULL DEFAULT false,
@@ -199,6 +200,34 @@ CREATE TABLE "Student" (
     "updatedAt" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "Student_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261123000002)
+CREATE TABLE "Classroom" (
+    "id" UUID NOT NULL,
+    "schoolId" UUID NOT NULL,
+    "name" VARCHAR(60) NOT NULL,
+    "level" "Level" NOT NULL,
+    "grade" VARCHAR(20) NOT NULL,
+    "section" VARCHAR(10) NOT NULL,
+    "staffId" UUID,
+    "capacity" INTEGER,
+    "status" SMALLINT NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "Classroom_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable (20261123000003)
+CREATE TABLE "ClassroomSchedule" (
+    "classroomId" UUID NOT NULL,
+    "scheduleId" UUID NOT NULL,
+    "schoolId" UUID NOT NULL,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
+
+    CONSTRAINT "ClassroomSchedule_pkey" PRIMARY KEY ("classroomId","scheduleId")
 );
 
 -- CreateTable
@@ -257,13 +286,9 @@ CREATE TABLE "Shift" (
 -- CreateTable
 CREATE TABLE "Staff" (
     "id" UUID NOT NULL,
-    "schoolId" UUID NOT NULL,
-    "nationalId" CHAR(8) NOT NULL,
-    "name" VARCHAR(120) NOT NULL,
-    "position" VARCHAR(80) NOT NULL,
+    "userId" UUID NOT NULL,
     "department" VARCHAR(60) NOT NULL,
     "shiftId" UUID,
-    "email" VARCHAR(160),
     "active" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ(3) NOT NULL,
@@ -277,6 +302,7 @@ CREATE TABLE "TimeEntry" (
     "schoolId" UUID NOT NULL,
     "staffId" UUID NOT NULL,
     "stationId" UUID,
+    "shiftId" UUID,
     "date" DATE NOT NULL,
     "clockInAt" TIMESTAMPTZ(3) NOT NULL,
     "clockOutAt" TIMESTAMPTZ(3),
@@ -609,6 +635,24 @@ CREATE INDEX "Student_schoolId_lastName_idx" ON "Student"("schoolId", "lastName"
 -- CreateIndex
 CREATE UNIQUE INDEX "Student_schoolId_document_key" ON "Student"("schoolId", "document");
 
+-- CreateIndex (20261123000002)
+CREATE INDEX "Student_classroomId_idx" ON "Student"("classroomId");
+
+-- CreateIndex (20261123000002)
+CREATE UNIQUE INDEX "Classroom_schoolId_name_key" ON "Classroom"("schoolId", "name");
+
+-- CreateIndex (20261123000002)
+CREATE INDEX "Classroom_staffId_idx" ON "Classroom"("staffId");
+
+-- CreateIndex (20261123000003)
+CREATE INDEX "ClassroomSchedule_scheduleId_idx" ON "ClassroomSchedule"("scheduleId");
+
+-- CreateIndex (20261124000000; target of the composite FK that keeps ClassroomSchedule in one school)
+CREATE UNIQUE INDEX "Classroom_id_schoolId_key" ON "Classroom"("id", "schoolId");
+
+-- CreateIndex (20261124000000; target of the composite FK that keeps ClassroomSchedule in one school)
+CREATE UNIQUE INDEX "Schedule_id_schoolId_key" ON "Schedule"("id", "schoolId");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Guardian_schoolId_nationalId_key" ON "Guardian"("schoolId", "nationalId");
 
@@ -622,13 +666,16 @@ CREATE UNIQUE INDEX "Authorization_studentId_guardianId_key" ON "Authorization"(
 CREATE UNIQUE INDEX "Shift_schoolId_name_key" ON "Shift"("schoolId", "name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Staff_schoolId_nationalId_key" ON "Staff"("schoolId", "nationalId");
+CREATE UNIQUE INDEX "Staff_userId_key" ON "Staff"("userId");
 
 -- CreateIndex
 CREATE INDEX "TimeEntry_schoolId_date_idx" ON "TimeEntry"("schoolId", "date");
 
 -- CreateIndex
 CREATE INDEX "TimeEntry_staffId_date_idx" ON "TimeEntry"("staffId", "date");
+
+-- CreateIndex (20261123000000)
+CREATE INDEX "TimeEntry_shiftId_idx" ON "TimeEntry"("shiftId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FaceEnrollment_staffId_key" ON "FaceEnrollment"("staffId");
@@ -744,6 +791,12 @@ ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_status_check" CHECK ("status" IN
 -- AddCheck
 ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_time_check" CHECK ("startTime" < "endTime");
 
+-- AddCheck (20261123000002)
+ALTER TABLE "Classroom" ADD CONSTRAINT "Classroom_status_check" CHECK ("status" IN (0, 1));
+
+-- AddCheck (20261123000002)
+ALTER TABLE "Classroom" ADD CONSTRAINT "Classroom_capacity_check" CHECK ("capacity" IS NULL OR "capacity" > 0);
+
 -- AddForeignKey
 ALTER TABLE "LevelSchedule" ADD CONSTRAINT "LevelSchedule_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -765,6 +818,27 @@ ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_userId_fkey" FOREIGN KEY ("u
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- AddForeignKey (20261123000002)
+ALTER TABLE "Student" ADD CONSTRAINT "Student_classroomId_fkey" FOREIGN KEY ("classroomId") REFERENCES "Classroom"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000002)
+ALTER TABLE "Classroom" ADD CONSTRAINT "Classroom_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000002)
+ALTER TABLE "Classroom" ADD CONSTRAINT "Classroom_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000003)
+ALTER TABLE "ClassroomSchedule" ADD CONSTRAINT "ClassroomSchedule_classroomId_fkey" FOREIGN KEY ("classroomId") REFERENCES "Classroom"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000003)
+ALTER TABLE "ClassroomSchedule" ADD CONSTRAINT "ClassroomSchedule_scheduleId_fkey" FOREIGN KEY ("scheduleId") REFERENCES "Schedule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey (20261124000000; same school: the classroom and the schedule must both belong to "schoolId")
+ALTER TABLE "ClassroomSchedule" ADD CONSTRAINT "ClassroomSchedule_classroom_school_fkey" FOREIGN KEY ("classroomId", "schoolId") REFERENCES "Classroom"("id", "schoolId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey (20261124000000)
+ALTER TABLE "ClassroomSchedule" ADD CONSTRAINT "ClassroomSchedule_schedule_school_fkey" FOREIGN KEY ("scheduleId", "schoolId") REFERENCES "Schedule"("id", "schoolId") ON DELETE CASCADE ON UPDATE CASCADE;
+
 -- AddForeignKey
 ALTER TABLE "Guardian" ADD CONSTRAINT "Guardian_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -778,10 +852,10 @@ ALTER TABLE "Authorization" ADD CONSTRAINT "Authorization_guardianId_fkey" FOREI
 ALTER TABLE "Shift" ADD CONSTRAINT "Shift_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Staff" ADD CONSTRAINT "Staff_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Staff" ADD CONSTRAINT "Staff_shiftId_fkey" FOREIGN KEY ("shiftId") REFERENCES "Shift"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000001)
+ALTER TABLE "Staff" ADD CONSTRAINT "Staff_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TimeEntry" ADD CONSTRAINT "TimeEntry_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -791,6 +865,9 @@ ALTER TABLE "TimeEntry" ADD CONSTRAINT "TimeEntry_staffId_fkey" FOREIGN KEY ("st
 
 -- AddForeignKey
 ALTER TABLE "TimeEntry" ADD CONSTRAINT "TimeEntry_stationId_fkey" FOREIGN KEY ("stationId") REFERENCES "Station"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey (20261123000000)
+ALTER TABLE "TimeEntry" ADD CONSTRAINT "TimeEntry_shiftId_fkey" FOREIGN KEY ("shiftId") REFERENCES "Shift"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TimeEntry" ADD CONSTRAINT "TimeEntry_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

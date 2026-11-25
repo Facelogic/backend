@@ -4,6 +4,7 @@ import type { Level } from '../../db/models/enums.ts';
 import type { AlertInstance } from './alert.interface.ts';
 import type { ArrivalInstance } from './arrival.interface.ts';
 import type { AuthorizationInstance } from './authorization.interface.ts';
+import type { ClassroomInstance } from './classroom.interface.ts';
 import type { DocumentTypeInstance } from './document-type.interface.ts';
 import type { NotificationInstance } from './notification.interface.ts';
 import type { PickupInstance } from './pickup.interface.ts';
@@ -20,6 +21,7 @@ export interface StudentAttributes {
   level: Level;
   grade: string;
   section: string | null;
+  classroomId: string | null;
   badgeCode: string;
   badgeVersion: number;
   canLeaveAlone: boolean;
@@ -28,10 +30,11 @@ export interface StudentAttributes {
   updatedAt: Date;
 }
 
-export type StudentCreationAttributes = Optional<StudentAttributes, 'id' | 'documentTypeId' | 'document' | 'section' | 'badgeVersion' | 'canLeaveAlone' | 'active' | 'createdAt' | 'updatedAt'>;
+export type StudentCreationAttributes = Optional<StudentAttributes, 'id' | 'documentTypeId' | 'document' | 'section' | 'classroomId' | 'badgeVersion' | 'canLeaveAlone' | 'active' | 'createdAt' | 'updatedAt'>;
 
 export interface StudentInstance extends Model<StudentAttributes, StudentCreationAttributes>, StudentAttributes {
   school?: NonAttribute<SchoolInstance>;
+  classroom?: NonAttribute<ClassroomInstance>;
   documentType?: NonAttribute<DocumentTypeInstance>;
   authorizations?: NonAttribute<AuthorizationInstance[]>;
   arrivals?: NonAttribute<ArrivalInstance[]>;

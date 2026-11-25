@@ -3,6 +3,8 @@ import type { Model, NonAttribute, Optional } from 'sequelize';
 import type { UserInstance } from './user.interface.ts';
 import type { AppStatus, LevelType } from '../../db/models/enums.ts';
 import type { SchoolInstance } from './school.interface.ts';
+import type { ClassroomInstance } from './classroom.interface.ts';
+import type { ClassroomScheduleInstance } from './classroom-schedule.interface.ts';
 
 export interface ScheduleAttributes {
     id: string;
@@ -21,4 +23,6 @@ export type ScheduleCreationAttributes = Optional<ScheduleAttributes, 'id' | 'le
 
 export interface ScheduleInstance extends Model<ScheduleAttributes, ScheduleCreationAttributes>, ScheduleAttributes {
     school?: NonAttribute<SchoolInstance>;
+    classroomSchedules?: NonAttribute<ClassroomScheduleInstance[]>;
+    classrooms?: NonAttribute<ClassroomInstance[]>;
 }

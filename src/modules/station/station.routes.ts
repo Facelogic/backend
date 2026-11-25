@@ -4,6 +4,9 @@ import { authenticate, authorize } from '../../middlewares/auth.ts';
 
 const router = Router();
 
+// Simple list (id + name) of the session's school; any school role. Declared before the SUPERADMIN-only guard.
+router.get('/simple', authenticate, authorize('SUPERADMIN', 'APP_ADMIN', 'DOOR_STAFF'), controller.listSimple);
+
 // Stations are managed from the provider console (superadmin).
 router.use(authenticate, authorize('SUPERADMIN'));
 

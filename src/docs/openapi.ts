@@ -1,6 +1,7 @@
 // OpenAPI 3 spec served by Swagger UI at /api/docs (raw JSON at /api/docs.json).
 // Keep it in sync with the routes in src/modules/*/*.routes.ts.
 
+import { ValidationMethod } from '../db/models/enums.ts';
 import {
   APP_ADMIN_SETTINGS_FIELDS,
   SUPERADMIN_SETTINGS_FIELDS,
@@ -220,8 +221,39 @@ const openapi = {
     { name: 'Schools', description: 'Gestión, cambio de estado y exportación a Excel de colegios (solo SUPERADMIN)' },
     { name: 'Stations', description: 'Gestión, cambio de estado y exportación a Excel de estaciones (solo SUPERADMIN)' },
     { name: 'Students', description: 'Gestión y exportación a Excel de estudiantes (SUPERADMIN: todos los colegios / APP_ADMIN: su colegio)' },
-    { name: 'Shifts', description: 'Turnos del personal del colegio de la sesión (SUPERADMIN indica schoolId)' },
-    { name: 'Schedules', description: 'Horarios por nivel de cada colegio (solo SUPERADMIN)' },
+    { name: 'Pickups', description: 'Registro y listado de recojos de alumnos (SUPERADMIN: todos los colegios / APP_ADMIN y DOOR_STAFF: su colegio)' },
+    {
+      name: 'Staff',
+      description:
+        'Personal del colegio. Cada personal está relacionado con un usuario (`userId`), del que toma nombre, documento, correo, cargo y colegio. ' +
+        'Crear: SUPERADMIN y APP_ADMIN; listado simple: también DOOR_STAFF (SUPERADMIN indica schoolId / el resto: su colegio)',
+    },
+    {
+      name: 'Enrollments',
+      description:
+        'Enrolamiento facial de personal y apoderados (SUPERADMIN: todos los colegios / APP_ADMIN y DOOR_STAFF: su colegio; ' +
+        'editar y eliminar solo SUPERADMIN / APP_ADMIN)',
+    },
+    { name: 'Attendance', description: 'Registro y listado de asistencia del personal (SUPERADMIN: todos los colegios / APP_ADMIN y DOOR_STAFF: su colegio)' },
+    {
+      name: 'Classrooms',
+      description:
+        'Aulas del colegio de la sesión (SUPERADMIN indica schoolId; APP_ADMIN: su colegio). Un alumno pertenece a una sola aula ' +
+        '(`Student.classroomId`); un aula puede tener varios alumnos. Cada aula recibe automáticamente los horarios activos ' +
+        'de su colegio con su mismo nivel (un aula puede tener varios horarios y un horario varias aulas, siempre del mismo colegio).',
+    },
+    {
+      name: 'Shifts',
+      description:
+        'Turnos del personal del colegio de la sesión (SUPERADMIN indica schoolId). Gestión: SUPERADMIN y APP_ADMIN; ' +
+        'listado simple: también DOOR_STAFF',
+    },
+    {
+      name: 'Schedules',
+      description:
+        'Horarios por nivel de cada colegio (solo SUPERADMIN). Cada horario activo se aplica automáticamente a todas las aulas ' +
+        'de su colegio con el mismo nivel.',
+    },
     {
       name: 'School Settings',
       description:
@@ -277,7 +309,7 @@ const openapi = {
       ValidateInvitationRequest: {
         type: 'object',
         required: ['token'],
-        properties: { token: { type: 'string', description: 'Token recibido en el enlace del correo (?token=...)' } },
+        properties: { token: { type: 'string', description: 'Token recibido en el fragmento del enlace del correo (#token=...)' } },
       },
       InvitationInfo: {
         type: 'object',
@@ -293,7 +325,7 @@ const openapi = {
         type: 'object',
         required: ['token', 'password'],
         properties: {
-          token: { type: 'string', description: 'Token recibido en el enlace del correo (?token=...)' },
+          token: { type: 'string', description: 'Token recibido en el fragmento del enlace del correo (#token=...)' },
           password: { type: 'string', format: 'password', minLength: 8 },
           confirmPassword: { type: 'string', format: 'password', description: 'Opcional; si se envía debe coincidir con password' },
         },
@@ -384,6 +416,33 @@ const openapi = {
           },
         },
       },
+      CreateStaffRequest: {
+        type: 'object',
+        description:
+          'Crea el usuario (mismos campos y reglas que POST /api/user, con `position` obligatorio) y su registro de personal. ' +
+          'Staff no guarda nombre, documento, correo, cargo ni colegio: se relaciona con el usuario por `userId` y solo guarda `department`, `shiftId` y `active`.',
+        required: ['name', 'email', 'documentTypeId', 'document', 'roleId', 'position', 'department'],
+        properties: {
+          name: { type: 'string', maxLength: 120, example: 'Carlos Mendoza Ríos', description: 'Nombre y apellido (se guarda en el usuario)' },
+          email: userWritableFields.email,
+          documentTypeId: { type: 'string', format: 'uuid', description: 'Tipo de documento' },
+          document: {
+            type: 'string',
+            example: '12345678',
+            description: 'Número de documento; su longitud debe coincidir con el `size` del tipo de documento. Único.',
+          },
+          phone: userWritableFields.phone,
+          position: { type: 'string', maxLength: 80, example: 'Docente', description: 'Cargo (se guarda en el usuario)' },
+          roleId: userWritableFields.roleId,
+          schoolId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Colegio del usuario (y por lo tanto del personal). Obligatorio solo para SUPERADMIN; APP_ADMIN usa su colegio',
+          },
+          department: { type: 'string', maxLength: 60, example: 'Primaria', description: 'Área del personal' },
+          shiftId: { type: 'string', format: 'uuid', nullable: true, description: 'Turno del mismo colegio (opcional)' },
+        },
+      },
       UpdateUserRequest: {
         type: 'object',
         description:
@@ -437,7 +496,9 @@ const openapi = {
           // status: { type: 'integer', enum: [0, 1], description: '0 = INACTIVE, 1 = ACTIVE' },
           schedules: {
             type: 'array',
-            description: 'Horarios del colegio; se crean con el schoolId del colegio nuevo.',
+            description:
+              'Horarios del colegio; se crean con el schoolId del colegio nuevo, en la misma transacción que el colegio. ' +
+              'Se aplican a las aulas del colegio según su nivel, incluidas las que se creen después.',
             items: ref('SchoolScheduleInput'),
           },
         },
@@ -454,7 +515,9 @@ const openapi = {
             description:
               'Lista completa de horarios del colegio (si se omite, no se tocan). Los que traen id de un horario activo ' +
               'del colegio se actualizan, los que no traen id se crean y los horarios activos que no aparecen pasan a status 0. ' +
-              'Un arreglo vacío desactiva todos. Se aplica en la misma transacción que los datos del colegio.',
+              'Un arreglo vacío desactiva todos. Se aplica en la misma transacción que los datos del colegio. ' +
+              'Las aulas se revinculan según su nivel: los horarios nuevos se les agregan, los desactivados se les quitan ' +
+              'y un horario que cambia de nivel pasa a las aulas del nuevo nivel.',
             items: ref('UpdateSchoolScheduleInput'),
           },
         },
@@ -534,6 +597,249 @@ const openapi = {
           section: nullableString({ maxLength: 10, example: 'A' }),
           canLeaveAlone: { type: 'boolean', default: false, description: 'Si puede salir solo del colegio' },
           schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN, solo en POST' },
+        },
+      },
+      ValidationMethod: {
+        type: 'string',
+        enum: [...ValidationMethod],
+        description:
+          'Cómo se validó a quien recoge al alumno:\n' +
+          '- `FACE`: reconocimiento facial del apoderado.\n' +
+          '- `CODE`: código personal del apoderado.\n' +
+          '- `NATIONAL_ID`: documento de identidad (DNI) del apoderado.\n' +
+          '- `UNACCOMPANIED`: el alumno sale solo ("Salió solo"); no hay apoderado.\n' +
+          '- `MANUAL`: registro manual del personal (status por defecto MANUAL, que exige `manualReason`).\n\n' +
+          'FACE, CODE y NATIONAL_ID identifican a una persona: con status AUTHORIZED y guardianId, el apoderado debe tener una autorización vigente con canPickUp.',
+      },
+      PickupListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          code: { type: 'string', example: 'RET-20261122-000015' },
+          occurredAt: { type: 'string', format: 'date-time' },
+          date: { type: 'string', example: '22/11/2026', description: 'dd/mm/yyyy (Lima)' },
+          time: { type: 'string', example: '13:05', description: 'HH:mm (Lima)' },
+          studentId: { type: 'string', format: 'uuid' },
+          student: { type: 'string', example: 'Ramírez Torres, Lucía', description: 'Apellidos, Nombres' },
+          pickedUpBy: { type: 'string', example: 'María Torres', description: 'Quién recogió al alumno' },
+          guardianId: nullableString({ format: 'uuid' }),
+          photoUrl: nullableString({ format: 'uri', description: 'URL temporal de la foto; null si no hay foto o ya venció su retención' }),
+          guardianNotified: { type: 'boolean', description: 'true si al menos un apoderado recibió la notificación del retiro' },
+          status: { type: 'string', enum: ['AUTHORIZED', 'DENIED', 'MANUAL'] },
+          method: ref('ValidationMethod'),
+          station: nullableString(),
+          school: { type: 'string' },
+        },
+      },
+      PickupRequest: {
+        type: 'object',
+        required: ['studentId', 'method'],
+        description:
+          'Se envía como JSON o, para adjuntar la foto, como multipart/form-data con el archivo en `photo`. ' +
+          'pickedUpBy es obligatorio salvo que se envíe guardianId (se usa su nombre) o method = UNACCOMPANIED ("Salió solo").',
+        properties: {
+          studentId: { type: 'string', format: 'uuid' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN; por defecto el colegio del alumno' },
+          stationId: { type: 'string', format: 'uuid', description: 'Estación que registró el retiro (del mismo colegio)' },
+          occurredAt: { type: 'string', format: 'date-time', description: 'Hora del retiro; por defecto ahora' },
+          method: ref('ValidationMethod'),
+          status: {
+            type: 'string',
+            enum: ['AUTHORIZED', 'DENIED', 'MANUAL'],
+            description: 'Por defecto MANUAL si method = MANUAL, si no AUTHORIZED. MANUAL exige manualReason.',
+          },
+          guardianId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'Apoderado que recoge. Con status AUTHORIZED y method FACE / CODE / NATIONAL_ID debe tener una autorización vigente con canPickUp.',
+          },
+          pickedUpBy: { type: 'string', maxLength: 120, example: 'María Torres' },
+          confidence: { type: 'number', minimum: 0, maximum: 100, description: 'Similitud del reconocimiento facial' },
+          manualReason: { type: 'string', maxLength: 160 },
+          noPhotoReason: { type: 'string', maxLength: 160, description: 'Motivo por el que no hay foto' },
+          mediaId: { type: 'string', format: 'uuid', description: 'Imagen ya subida por /api/media (alternativa a `photo`)' },
+          photo: { type: 'string', format: 'binary', description: 'Solo multipart: jpg, png o webp' },
+          photoType: { type: 'string', enum: ['FACE_VALIDATION', 'QR_SCAN', 'EXIT'], default: 'EXIT' },
+          guardianNotified: {
+            type: 'boolean',
+            default: false,
+            description:
+              'true si ya se avisó a los apoderados: se registra una notificación EXIT por cada apoderado con autorización vigente y receivesNotifications',
+          },
+        },
+      },
+      PickupCreated: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          code: { type: 'string', example: 'RET-20261122-000015' },
+          photoType: { type: 'string', enum: ['FACE_VALIDATION', 'QR_SCAN', 'EXIT'], nullable: true },
+          notifiedGuardians: { type: 'integer', description: 'Apoderados registrados como notificados' },
+        },
+      },
+      EnrollmentListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          personType: { type: 'string', enum: ['STAFF', 'GUARDIAN'], description: 'Personal o apoderado' },
+          personId: { type: 'string', format: 'uuid', description: 'Id del personal o del apoderado' },
+          name: { type: 'string', example: 'Carlos Mendoza Ríos', description: 'Nombre de la persona' },
+          enrolledAt: { type: 'string', format: 'date-time' },
+          enrolledDate: { type: 'string', example: '23/11/2026', description: 'Fecha de enrolado dd/mm/yyyy (Lima)' },
+          poses: { type: 'integer', example: 3 },
+          learnedTemplates: { type: 'integer', example: 2, description: 'Plantillas aprendidas con el uso' },
+          lastTemplateAt: nullableDate,
+          school: { type: 'string' },
+        },
+      },
+      EnrollmentDetail: {
+        allOf: [
+          ref('EnrollmentListItem'),
+          {
+            type: 'object',
+            properties: {
+              schoolId: { type: 'string', format: 'uuid' },
+              consentAt: { type: 'string', format: 'date-time', description: 'Fecha del consentimiento' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        ],
+      },
+      EnrollmentRequest: {
+        type: 'object',
+        description:
+          'POST: obligatorios staffId o guardianId (solo uno), poses y el consentimiento (consentAt, o consent = true para registrarlo ahora). ' +
+          'Una persona solo puede tener un enrolamiento. ' +
+          'PUT: solo se cambian los campos enviados (poses, enrolledAt, consentAt, learnedTemplates, lastTemplateAt; null o vacío limpia lastTemplateAt); ' +
+          'no se puede cambiar la persona.',
+        properties: {
+          staffId: { type: 'string', format: 'uuid', description: 'Solo en POST' },
+          guardianId: { type: 'string', format: 'uuid', description: 'Solo en POST' },
+          poses: { type: 'integer', minimum: 1, maximum: 20, example: 3 },
+          enrolledAt: { type: 'string', format: 'date-time', description: 'Por defecto ahora' },
+          consentAt: { type: 'string', format: 'date-time' },
+          consent: { type: 'boolean', description: 'true = consentimiento otorgado ahora (si no se envía consentAt)' },
+          learnedTemplates: { type: 'integer', minimum: 0, maximum: 1000, default: 0, description: 'Plantillas aprendidas con el uso' },
+          lastTemplateAt: { type: 'string', format: 'date-time', nullable: true, description: 'No puede ser anterior a enrolledAt' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN, solo en POST; por defecto el colegio de la persona' },
+        },
+      },
+      AttendanceListItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          date: { type: 'string', example: '20/11/2026', description: 'dd/mm/yyyy (Lima)' },
+          staffId: { type: 'string', format: 'uuid' },
+          staff: { type: 'string', example: 'Carlos Mendoza Ríos', description: 'Nombre completo del personal' },
+          shiftId: nullableString({ format: 'uuid', description: 'Turno de la asistencia; null solo en registros anteriores a la relación' }),
+          shift: { type: 'string', example: 'Mañana', description: 'Nombre actual del turno (o el guardado al registrar, si no está relacionado)' },
+          clockInAt: { type: 'string', format: 'date-time' },
+          clockIn: { type: 'string', example: '08:25', description: 'Hora de entrada HH:mm (Lima)' },
+          clockOutAt: nullableDate,
+          clockOut: nullableString({ example: '17:30', description: 'Hora de salida HH:mm (Lima); null si aún no marca salida' }),
+          isLate: { type: 'boolean', description: 'Tiene tardanza' },
+          lateMin: { type: 'integer', example: 25, description: 'Minutos de tardanza' },
+          workedMin: { type: 'integer', nullable: true, description: 'Minutos trabajados (descontando el refrigerio); null sin salida' },
+          overtimeMin: { type: 'integer', example: 90, description: 'Minutos de horas extra' },
+          overtime: { type: 'string', example: '01:30', description: 'Horas extra HH:mm' },
+          status: {
+            type: 'string',
+            enum: ['ON_TIME', 'LATE', 'IN_PROGRESS', 'INCOMPLETE'],
+            description: 'IN_PROGRESS = sin salida (hoy); INCOMPLETE = sin salida y el día ya pasó; LATE = cerrada con tardanza; ON_TIME = cerrada sin tardanza',
+          },
+          statusLabel: { type: 'string', enum: ['Puntual', 'Tardanza', 'En curso', 'Sin salida'] },
+          remarks: nullableString({ description: 'Observación' }),
+          manualReason: nullableString({ description: 'Motivo del registro manual' }),
+          source: { type: 'string', enum: ['STATION', 'MANUAL'] },
+          station: nullableString(),
+        },
+      },
+      AttendanceRequest: {
+        type: 'object',
+        required: ['staffId', 'shiftId'],
+        description:
+          'El turno se elige al registrar la asistencia (no depende del personal); tardanza, horas trabajadas y horas extra se calculan con él (hora de Lima): ' +
+          'tardanza solo en turnos FIXED, cuando la demora supera graceMin (cuenta toda la demora); el refrigerio (breakDeductionMin) ' +
+          'se descuenta si la asistencia lo cubre completo; horas extra (si countOvertime) = minutos después de endTime en FIXED, ' +
+          'o tiempo trabajado por encima del programado en FLEXIBLE. No se permite cruzarse con otra asistencia del mismo personal.',
+        properties: {
+          staffId: { type: 'string', format: 'uuid' },
+          shiftId: { type: 'string', format: 'uuid', description: 'Turno de esta asistencia (del mismo colegio)' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN; por defecto el colegio del usuario del personal' },
+          stationId: { type: 'string', format: 'uuid', description: 'Estación que registró la marcación (del mismo colegio)' },
+          clockInAt: { type: 'string', format: 'date-time', description: 'Entrada; por defecto ahora' },
+          clockOutAt: { type: 'string', format: 'date-time', description: 'Salida (opcional); posterior a la entrada y máximo 24 h después' },
+          source: { type: 'string', enum: ['STATION', 'MANUAL'], description: 'Por defecto STATION si se envía stationId, si no MANUAL' },
+          manualReason: { type: 'string', maxLength: 120, description: 'Obligatorio si source = MANUAL' },
+          remarks: { type: 'string', maxLength: 300, description: 'Observación' },
+          confidence: { type: 'number', minimum: 0, maximum: 100, description: 'Similitud del reconocimiento facial' },
+        },
+      },
+      AttendanceCreated: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          lateMin: { type: 'integer' },
+          workedMin: { type: 'integer', nullable: true },
+          overtimeMin: { type: 'integer' },
+          status: { type: 'string', enum: ['ON_TIME', 'LATE', 'IN_PROGRESS', 'INCOMPLETE'] },
+        },
+      },
+      ClassroomItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: '1° A Primaria' },
+          level: { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY'] },
+          grade: { type: 'string', example: '1°' },
+          section: { type: 'string', example: 'A' },
+          staffId: { type: 'string', format: 'uuid', nullable: true, description: 'Tutor (personal del colegio)' },
+          tutor: { type: 'string', nullable: true, example: 'Carlos Mendoza Ríos', description: 'Nombre completo del tutor' },
+          students: { type: 'integer', example: 25, description: 'Total de alumnos relacionados al aula' },
+          capacity: { type: 'integer', nullable: true, example: 30, description: 'Máximo de alumnos permitidos' },
+          status: { type: 'integer', enum: [0, 1], description: '0 = inhabilitado, 1 = habilitado' },
+          statusLabel: { type: 'string', example: 'Habilitado' },
+        },
+      },
+      ClassroomDetail: {
+        allOf: [
+          ref('ClassroomItem'),
+          {
+            type: 'object',
+            properties: {
+              schoolId: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        ],
+      },
+      ClassroomRequest: {
+        type: 'object',
+        description:
+          'POST: obligatorios name, level, grade y section (y schoolId para SUPERADMIN). ' +
+          'PUT: solo se cambian los campos enviados; schoolId se ignora.',
+        properties: {
+          name: { type: 'string', maxLength: 60, example: '1° A Primaria', description: 'Único dentro del colegio' },
+          level: { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY', 'INICIAL', 'PRIMARIA', 'SECUNDARIA'] },
+          grade: { type: 'string', maxLength: 20, example: '1°' },
+          section: { type: 'string', maxLength: 10, example: 'A' },
+          staffId: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description: 'Tutor: personal activo del mismo colegio (opcional; null o vacío lo quita)',
+          },
+          capacity: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 1000,
+            nullable: true,
+            description: 'Máximo de alumnos (opcional; null o vacío lo quita). No puede ser menor que los alumnos actuales.',
+          },
+          status: { type: 'integer', enum: [0, 1], default: 1, description: '0 = inhabilitado, 1 = habilitado' },
+          schoolId: { type: 'string', format: 'uuid', description: 'Solo SUPERADMIN (obligatorio en POST)' },
         },
       },
       ShiftItem: {
@@ -1164,6 +1470,9 @@ const openapi = {
       post: {
         tags: ['Schools'],
         summary: 'Crear colegio (y opcionalmente sus horarios)',
+        description:
+          'Crea el colegio, su configuración por defecto y sus horarios en una sola transacción (si algo falla no se crea nada). ' +
+          'Los horarios se aplicarán a las aulas del colegio según su nivel, también a las que se creen después.',
         security: bearer,
         requestBody: { required: true, content: json('CreateSchoolRequest') },
         responses: {
@@ -1240,8 +1549,8 @@ const openapi = {
         tags: ['Schools'],
         summary: 'Desactivar colegio y sus horarios (soft delete)',
         description:
-          'Marca el colegio como INACTIVE y sus horarios (Schedule) con status 0, en una sola transacción; ' +
-          'las filas se conservan porque otras tablas referencian al colegio.',
+          'Marca el colegio como INACTIVE y sus horarios (Schedule) con status 0, en una sola transacción, y quita esos ' +
+          'horarios de las aulas; las filas se conservan porque otras tablas referencian al colegio.',
         security: bearer,
         parameters: [idParam],
         responses: {
@@ -1257,7 +1566,8 @@ const openapi = {
         tags: ['Schools'],
         summary: 'Cambiar estado del colegio',
         description:
-          'Activa (1) o desactiva (0) el colegio. Al desactivarlo también pasa sus horarios a status 0, en una sola transacción; ' +
+          'Activa (1) o desactiva (0) el colegio. Al desactivarlo también pasa sus horarios a status 0 y los quita de las aulas, ' +
+          'en una sola transacción; ' +
           'al activarlo los horarios no se reactivan (se vuelven a cargar con PUT /api/schools/{id}).',
         security: bearer,
         parameters: [idParam],
@@ -1274,6 +1584,93 @@ const openapi = {
 
     // ---- Stations
     // ---- Shifts
+    // ---- Classrooms
+    '/api/classrooms': {
+      get: {
+        tags: ['Classrooms'],
+        summary: 'Listar aulas del colegio (paginado)',
+        description:
+          'Aulas del colegio de la sesión ordenadas por nombre, con el tutor y el total de alumnos. SUPERADMIN debe indicar `schoolId`.',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre del aula (sin distinguir mayúsculas)'),
+          query('tutor', { type: 'string' }, 'Parte del nombre del tutor (sin distinguir mayúsculas)'),
+          query('staffId', { type: 'string', format: 'uuid' }, 'Tutor exacto'),
+          query('level', { type: 'string', enum: ['PRESCHOOL', 'PRIMARY', 'SECONDARY', 'INICIAL', 'PRIMARIA', 'SECUNDARIA'] }, 'Nivel'),
+          query('status', { type: 'integer', enum: [0, 1] }, '0 = inhabilitado, 1 = habilitado'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio (obligatorio y solo para SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de aulas', ref('ClassroomItem')),
+          400: errorResponse('Filtro, paginación o schoolId inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Classrooms'],
+        summary: 'Crear aula',
+        description: 'El aula recibe automáticamente los horarios activos de su colegio con su mismo nivel.',
+        security: bearer,
+        requestBody: { required: true, content: json('ClassroomRequest') },
+        responses: {
+          201: okId('Id del aula creada'),
+          400: errorResponse('Datos inválidos o colegio inexistente'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Tutor no encontrado en el colegio'),
+          409: errorResponse('Ya existe un aula con ese nombre en el colegio'),
+        },
+      },
+    },
+    '/api/classrooms/{id}': {
+      get: {
+        tags: ['Classrooms'],
+        summary: 'Obtener aula',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Aula', ref('ClassroomDetail')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Aula no encontrada (o de otro colegio)'),
+        },
+      },
+      put: {
+        tags: ['Classrooms'],
+        summary: 'Actualizar aula',
+        description:
+          'Solo se cambian los campos enviados (staffId / capacity en null o vacío los quitan). El colegio no se puede cambiar. ' +
+          'Si cambia el nivel, sus horarios se reemplazan por los horarios activos del nuevo nivel.',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('ClassroomRequest') },
+        responses: {
+          200: okId('Id del aula actualizada'),
+          400: errorResponse('Datos inválidos'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Aula o tutor no encontrado (o de otro colegio)'),
+          409: errorResponse('Nombre repetido en el colegio o capacidad menor que los alumnos actuales'),
+        },
+      },
+      delete: {
+        tags: ['Classrooms'],
+        summary: 'Eliminar aula',
+        description: 'Eliminación definitiva. No se permite mientras el aula tenga alumnos.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id del aula eliminada'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Aula no encontrada (o de otro colegio)'),
+          409: errorResponse('El aula tiene alumnos'),
+        },
+      },
+    },
+
     '/api/shifts': {
       get: {
         tags: ['Shifts'],
@@ -1308,6 +1705,32 @@ const openapi = {
       },
     },
 
+    '/api/shifts/simple': {
+      get: {
+        tags: ['Shifts'],
+        summary: 'Listado simple de turnos del colegio',
+        description:
+          'Todos los turnos del colegio, solo id y nombre, ordenados por nombre (sin paginar). ' +
+          'APP_ADMIN / DOOR_STAFF reciben los de su colegio (`schoolId` se ignora); SUPERADMIN debe enviar `schoolId`.',
+        security: bearer,
+        parameters: [query('schoolId', { type: 'string', format: 'uuid' }, 'Obligatorio solo para SUPERADMIN')],
+        responses: {
+          200: ok('Turnos del colegio', {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                name: { type: 'string', example: 'Mañana' },
+              },
+            },
+          }),
+          400: errorResponse('schoolId faltante o inválido (SUPERADMIN)'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+    },
     '/api/shifts/{id}': {
       get: {
         tags: ['Shifts'],
@@ -1342,7 +1765,7 @@ const openapi = {
       delete: {
         tags: ['Shifts'],
         summary: 'Eliminar turno',
-        description: 'Eliminación definitiva. No se permite si hay personal asignado al turno.',
+        description: 'Eliminación definitiva. No se permite si hay personal asignado al turno o asistencias registradas con él.',
         security: bearer,
         parameters: [idParam],
         responses: {
@@ -1350,7 +1773,244 @@ const openapi = {
           401: unauthorized,
           403: forbidden,
           404: errorResponse('Turno no encontrado (o de otro colegio)'),
-          409: errorResponse('El turno tiene personal asignado'),
+          409: errorResponse('El turno tiene personal asignado o asistencias registradas'),
+        },
+      },
+    },
+
+    // ---- Pickups
+    '/api/pickups': {
+      get: {
+        tags: ['Pickups'],
+        summary: 'Listar recojos de alumnos (paginado)',
+        description:
+          'Del más reciente al más antiguo: hora, alumno, quién lo recogió, enlace de la foto y si se avisó al apoderado. ' +
+          'Un SUPERADMIN ve todos los colegios; otro rol solo el suyo (el filtro `schoolId` se ignora).',
+        security: bearer,
+        parameters: [
+          query('studentName', { type: 'string' }, 'Parte de los nombres, apellidos o nombre completo del alumno'),
+          query('studentId', { type: 'string', format: 'uuid' }, 'Alumno exacto'),
+          query('dateFrom', { type: 'string', format: 'date' }, 'Desde (yyyy-mm-dd, Lima, inclusive)'),
+          query('dateTo', { type: 'string', format: 'date' }, 'Hasta (yyyy-mm-dd, Lima, inclusive)'),
+          query('status', { type: 'string', enum: ['AUTHORIZED', 'DENIED', 'MANUAL'] }, 'Estado'),
+          query('method', ref('ValidationMethod'), 'Método de validación (ver el schema ValidationMethod)'),
+          query('guardianNotified', { type: 'boolean' }, 'Solo avisados (true) o no avisados (false)'),
+          query('stationId', { type: 'string', format: 'uuid' }, 'Estación'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de recojos', ref('PickupListItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Pickups'],
+        summary: 'Registrar recojo de alumno',
+        description:
+          'Genera el código `RET-{yyyymmdd}-{######}` (correlativo por día). La foto se envía como archivo `photo` (multipart) ' +
+          'o como `mediaId`; su vencimiento sigue `photoRetentionDays` de la configuración del colegio.',
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: ref('PickupRequest') }, 'multipart/form-data': { schema: ref('PickupRequest') } },
+        },
+        responses: {
+          201: ok('Recojo registrado', ref('PickupCreated')),
+          400: errorResponse('Datos inválidos, apoderado no autorizado o estación/apoderado/imagen de otro colegio'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Estudiante no encontrado (o de otro colegio)'),
+          415: errorResponse('La foto no es jpg, png o webp'),
+        },
+      },
+    },
+
+    // ---- Staff
+    '/api/staff': {
+      post: {
+        tags: ['Staff'],
+        summary: 'Crear personal',
+        description:
+          'Crea el usuario (INVITED, sin contraseña) y el registro de personal relacionado por `userId`, en una sola transacción. ' +
+          'Luego se envía el correo de invitación; `invitationSent` es false si no se pudo enviar ' +
+          '(reintentar con POST /api/user/{userId}/invitation). Solo SUPERADMIN y APP_ADMIN.',
+        security: bearer,
+        requestBody: { required: true, content: json('CreateStaffRequest') },
+        responses: {
+          200: {
+            description: 'Id del personal creado y de su usuario',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['status', 'data', 'userId', 'invitationSent'],
+                  properties: {
+                    status: { type: 'boolean', example: true },
+                    data: { type: 'string', format: 'uuid', description: 'Id del personal (Staff)' },
+                    userId: { type: 'string', format: 'uuid', description: 'Id del usuario creado' },
+                    invitationSent: { type: 'boolean', example: true },
+                  },
+                },
+              },
+            },
+          },
+          400: errorResponse('Datos inválidos, documento con longitud incorrecta o FK inexistente'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso, intento de asignar el rol SUPERADMIN o cuenta sin colegio asignado'),
+          404: errorResponse('Turno no encontrado (o de otro colegio)'),
+          409: errorResponse('Email o documento ya registrado'),
+        },
+      },
+    },
+    '/api/staff/simple': {
+      get: {
+        tags: ['Staff'],
+        summary: 'Listado simple del personal del colegio',
+        description:
+          'Personal activo del colegio (según el colegio de su usuario), solo id y nombre completo del usuario, ordenado por nombre (sin paginar). ' +
+          'APP_ADMIN / DOOR_STAFF reciben el de su colegio (`schoolId` se ignora); SUPERADMIN debe enviar `schoolId`.',
+        security: bearer,
+        parameters: [query('schoolId', { type: 'string', format: 'uuid' }, 'Obligatorio solo para SUPERADMIN')],
+        responses: {
+          200: ok('Personal del colegio', {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                name: { type: 'string', example: 'Carlos Mendoza Ríos', description: 'Nombre completo' },
+              },
+            },
+          }),
+          400: errorResponse('schoolId faltante o inválido (SUPERADMIN)'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+    },
+
+    // ---- Enrollments
+    '/api/enrollments': {
+      get: {
+        tags: ['Enrollments'],
+        summary: 'Listar enrolamientos (paginado)',
+        description:
+          'Del más reciente al más antiguo: nombre de la persona, fecha de enrolado, poses y plantillas aprendidas con el uso. ' +
+          'Un SUPERADMIN ve todos los colegios; otro rol solo el suyo (el filtro `schoolId` se ignora).',
+        security: bearer,
+        parameters: [
+          query('name', { type: 'string' }, 'Parte del nombre de la persona (sin distinguir mayúsculas)'),
+          query('personType', { type: 'string', enum: ['STAFF', 'GUARDIAN'] }, 'Personal o apoderado'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de enrolamientos', ref('EnrollmentListItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Enrollments'],
+        summary: 'Registrar enrolamiento',
+        security: bearer,
+        requestBody: { required: true, content: json('EnrollmentRequest') },
+        responses: {
+          201: okId('Id del enrolamiento creado'),
+          400: errorResponse('Datos inválidos o falta el consentimiento'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Personal o apoderado no encontrado (o de otro colegio)'),
+          409: errorResponse('La persona ya tiene un enrolamiento registrado'),
+        },
+      },
+    },
+    '/api/enrollments/{id}': {
+      get: {
+        tags: ['Enrollments'],
+        summary: 'Obtener enrolamiento',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: ok('Enrolamiento', ref('EnrollmentDetail')),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Enrolamiento no encontrado (o de otro colegio)'),
+        },
+      },
+      put: {
+        tags: ['Enrollments'],
+        summary: 'Actualizar enrolamiento (SUPERADMIN / APP_ADMIN)',
+        security: bearer,
+        parameters: [idParam],
+        requestBody: { required: true, content: json('EnrollmentRequest') },
+        responses: {
+          200: okId('Id del enrolamiento actualizado'),
+          400: errorResponse('Datos inválidos o intento de cambiar la persona'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Enrolamiento no encontrado (o de otro colegio)'),
+        },
+      },
+      delete: {
+        tags: ['Enrollments'],
+        summary: 'Eliminar enrolamiento (SUPERADMIN / APP_ADMIN)',
+        description: 'Eliminación definitiva: la persona deja de estar enrolada.',
+        security: bearer,
+        parameters: [idParam],
+        responses: {
+          200: okId('Id del enrolamiento eliminado'),
+          401: unauthorized,
+          403: forbidden,
+          404: errorResponse('Enrolamiento no encontrado (o de otro colegio)'),
+        },
+      },
+    },
+
+    // ---- Attendance
+    '/api/attendance': {
+      get: {
+        tags: ['Attendance'],
+        summary: 'Listar asistencia del personal (paginado)',
+        description:
+          'De la más reciente a la más antigua: personal, turno, entrada, salida, tardanza, horas extra, estado y observación. ' +
+          'Un SUPERADMIN ve todos los colegios; otro rol solo el suyo (el filtro `schoolId` se ignora).',
+        security: bearer,
+        parameters: [
+          query('staffName', { type: 'string' }, 'Parte del nombre del personal (sin distinguir mayúsculas)'),
+          query('staffId', { type: 'string', format: 'uuid' }, 'Personal exacto'),
+          query('shiftId', { type: 'string', format: 'uuid' }, 'Turno exacto'),
+          query('shift', { type: 'string' }, 'Parte del nombre del turno'),
+          query('dateFrom', { type: 'string', format: 'date' }, 'Desde (yyyy-mm-dd, Lima, inclusive)'),
+          query('dateTo', { type: 'string', format: 'date' }, 'Hasta (yyyy-mm-dd, Lima, inclusive)'),
+          query('status', { type: 'string', enum: ['ON_TIME', 'LATE', 'IN_PROGRESS', 'INCOMPLETE'] }, 'Estado de la asistencia'),
+          query('late', { type: 'boolean' }, 'Solo con tardanza (true) o sin tardanza (false)'),
+          query('schoolId', { type: 'string', format: 'uuid' }, 'Colegio exacto (solo SUPERADMIN)'),
+          ...paginationParams,
+        ],
+        responses: {
+          200: okPage('Página de asistencias', ref('AttendanceListItem')),
+          400: errorResponse('Filtro o paginación inválidos'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+        },
+      },
+      post: {
+        tags: ['Attendance'],
+        summary: 'Registrar asistencia del personal',
+        security: bearer,
+        requestBody: { required: true, content: json('AttendanceRequest') },
+        responses: {
+          201: ok('Asistencia registrada', ref('AttendanceCreated')),
+          400: errorResponse('Datos inválidos, o turno / estación de otro colegio'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
+          404: errorResponse('Personal no encontrado (o de otro colegio)'),
+          409: errorResponse('El personal ya tiene una asistencia abierta o que se cruza con ese horario'),
         },
       },
     },
@@ -1486,6 +2146,30 @@ const openapi = {
           401: unauthorized,
           403: forbidden,
           409: errorResponse('Código ya registrado'),
+        },
+      },
+    },
+    '/api/stations/simple': {
+      get: {
+        tags: ['Stations'],
+        summary: 'Listado simple de estaciones del colegio',
+        description:
+          'Estaciones activas del colegio, solo id y nombre, ordenadas por nombre (sin paginar). ' +
+          'Accesible para SUPERADMIN, APP_ADMIN y DOOR_STAFF. APP_ADMIN / DOOR_STAFF reciben las de su colegio ' +
+          '(`schoolId` se ignora); SUPERADMIN debe enviar `schoolId`.',
+        security: bearer,
+        parameters: [query('schoolId', { type: 'string', format: 'uuid' }, 'Obligatorio solo para SUPERADMIN')],
+        responses: {
+          200: ok('Estaciones del colegio', {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string', example: 'Puerta principal' } },
+            },
+          }),
+          400: errorResponse('schoolId faltante o inválido (SUPERADMIN)'),
+          401: unauthorized,
+          403: errorResponse('Rol sin permiso o cuenta sin colegio asignado'),
         },
       },
     },
@@ -1692,6 +2376,7 @@ const openapi = {
       post: {
         tags: ['Schedules'],
         summary: 'Crear horario',
+        description: 'El horario se aplica a todas las aulas de su colegio con el mismo nivel (en la misma transacción).',
         security: bearer,
         requestBody: { required: true, content: json('CreateScheduleRequest') },
         responses: {
@@ -1706,6 +2391,8 @@ const openapi = {
       post: {
         tags: ['Schedules'],
         summary: 'Crear varios horarios',
+        description:
+          'Todos o ninguno (una sola transacción). Cada horario se aplica a las aulas de su colegio con el mismo nivel.',
         security: bearer,
         requestBody: {
           required: true,
@@ -1777,6 +2464,17 @@ const openapi = {
       get: {
         tags: ['Roles'],
         summary: 'Listar roles asignables (excluye SUPERADMIN)',
+        security: bearer,
+        responses: {
+          200: ok('Roles activos ordenados por nombre', { type: 'array', items: ref('RoleItem') }),
+          401: unauthorized,
+        },
+      },
+    },
+    '/api/roles/staff': {
+      get: {
+        tags: ['Roles'],
+        summary: 'Listar roles por debajo de APP_ADMIN (excluye SUPERADMIN y APP_ADMIN)',
         security: bearer,
         responses: {
           200: ok('Roles activos ordenados por nombre', { type: 'array', items: ref('RoleItem') }),

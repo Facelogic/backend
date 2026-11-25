@@ -1,5 +1,5 @@
 import { LevelType, PhotoServiceStatus } from "../../db/models/enums.ts";
-import { Schedule } from "../../db/models/index.ts";
+import { Schedule, sequelize } from "../../db/models/index.ts";
 import type { ScheduleAttributes, ScheduleInstance } from "../../interfaces/models/schedule.interface.ts";
 import type { SchoolInstance } from "../../interfaces/models/school.interface.ts";
 import type { ScheduleInput, ScheduleItem, SchoolScheduleInput } from "../../interfaces/schedule.interface.ts";
@@ -65,13 +65,51 @@ function parseInput(input: ScheduleInput): ScheduleChanges {
     return changes as ScheduleChanges;
 }
 
-export async function create(input: ScheduleInput): Promise<ScheduleItem> {
+// Keeps "ClassroomSchedule" in line with the rule "every classroom of a school is linked to the ACTIVE schedules
+// of that school with the same level": removes the links to inactive schedules or of another level and adds the
+// missing ones. Runs for one school (or several) and is idempotent, so it's called after any change to the
+// schedules of a school or to its classrooms (create, level change).
+export async function syncClassroomLinks(schoolIds: string | string[], transaction?: Transaction): Promise<void> {
+    const ids = [...new Set(Array.isArray(schoolIds) ? schoolIds : [schoolIds])].filter(Boolean);
+    if (!ids.length) return;
+    const options = { replacements: { schoolIds: ids }, transaction };
+
+    await sequelize.query(
+        `DELETE FROM "ClassroomSchedule" cs
+          USING "Classroom" c, "Schedule" s
+          WHERE cs."schoolId" IN (:schoolIds) AND c."id" = cs."classroomId" AND s."id" = cs."scheduleId"
+            AND (s."status" <> 1 OR s."level" <> c."level"::text)`,
+        options,
+    );
+    await sequelize.query(
+        `INSERT INTO "ClassroomSchedule" ("classroomId", "scheduleId", "schoolId", "createdAt", "updatedAt")
+         SELECT c."id", s."id", c."schoolId", NOW(), NOW()
+           FROM "Classroom" c
+           JOIN "Schedule" s ON s."schoolId" = c."schoolId" AND s."level" = c."level"::text AND s."status" = 1
+          WHERE c."schoolId" IN (:schoolIds)
+         ON CONFLICT ("classroomId", "scheduleId") DO NOTHING`,
+        options,
+    );
+}
+
+// Runs fn in the given transaction, or in a new one when none is passed.
+function inTransaction<T>(transaction: Transaction | undefined, fn: (t: Transaction) => Promise<T>): Promise<T> {
+    return transaction ? fn(transaction) : sequelize.transaction(fn);
+}
+
+// Creates the schedule and links it to the classrooms of its school with the same level.
+export async function create(input: ScheduleInput, transaction?: Transaction): Promise<ScheduleItem> {
     const changes = parseInput(input);
-    const schedule = await Schedule.create(changes).catch(handleWriteError);
+    const schedule = await inTransaction(transaction, async (t) => {
+        const created = await Schedule.create(changes, { transaction: t });
+        await syncClassroomLinks(created.schoolId, t);
+        return created;
+    }).catch(handleWriteError);
     return toItem(schedule);
 }
 
-export async function bulkCreate(inputs: unknown): Promise<ScheduleItem[]> {
+// Creates the schedules and links each one to the classrooms of its school with the same level.
+export async function bulkCreate(inputs: unknown, transaction?: Transaction): Promise<ScheduleItem[]> {
     if (!Array.isArray(inputs)) {
         throw new HttpError(400, 'El cuerpo debe ser un arreglo');
     }
@@ -83,7 +121,11 @@ export async function bulkCreate(inputs: unknown): Promise<ScheduleItem[]> {
         return parseInput(input as ScheduleInput);
     });
 
-    const schedules = await Schedule.bulkCreate(changes).catch(handleWriteError);
+    const schedules = await inTransaction(transaction, async (t) => {
+        const created = await Schedule.bulkCreate(changes, { transaction: t });
+        await syncClassroomLinks(created.map((schedule) => schedule.schoolId), t);
+        return created;
+    }).catch(handleWriteError);
     return schedules.map(toItem);
 }
 
@@ -127,13 +169,16 @@ export async function syncBySchool(schoolId: string, inputs: unknown, transactio
         if (removedIds.length) await Schedule.update({ status: 0 }, { where: { id: removedIds }, transaction });
         for (const [schedule, changes] of toUpdate) await schedule.update(changes, { transaction });
         if (toCreate.length) await Schedule.bulkCreate(toCreate, { transaction });
+        await syncClassroomLinks(schoolId, transaction);
     } catch (err) {
         handleWriteError(err);
     }
 }
 
 // Soft delete of every active schedule of a school (status 0), used when the school is deactivated.
+// Their classroom links are removed too.
 export async function removeBySchool(schoolId: string, transaction?: Transaction): Promise<number> {
     const [count] = await Schedule.update({ status: 0 }, { where: { schoolId, status: 1 }, transaction });
+    await syncClassroomLinks(schoolId, transaction);
     return count;
 }

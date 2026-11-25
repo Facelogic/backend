@@ -12,6 +12,7 @@ export default function defineTimeEntry(sequelize: Sequelize) {
       schoolId: { type: DataTypes.UUID, allowNull: false },
       staffId: { type: DataTypes.UUID, allowNull: false },
       stationId: DataTypes.UUID,
+      shiftId: DataTypes.UUID,
       date: { type: DataTypes.DATEONLY, allowNull: false },
       clockInAt: { type: DataTypes.DATE(3), allowNull: false },
       clockOutAt: DataTypes.DATE(3),
@@ -34,6 +35,7 @@ export default function defineTimeEntry(sequelize: Sequelize) {
       TimeEntry.belongsTo(models.School, { foreignKey: 'schoolId', as: 'school' });
       TimeEntry.belongsTo(models.Staff, { foreignKey: 'staffId', as: 'staff' });
       TimeEntry.belongsTo(models.Station, { foreignKey: 'stationId', as: 'station' });
+      TimeEntry.belongsTo(models.Shift, { foreignKey: 'shiftId', as: 'shift' });
       TimeEntry.belongsTo(models.User, { foreignKey: 'recordedById', as: 'recordedBy' });
     },
   });

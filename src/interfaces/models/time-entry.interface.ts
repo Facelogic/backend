@@ -2,6 +2,7 @@
 import type { Model, NonAttribute, Optional } from 'sequelize';
 import type { TimeEntrySource } from '../../db/models/enums.ts';
 import type { SchoolInstance } from './school.interface.ts';
+import type { ShiftInstance } from './shift.interface.ts';
 import type { StaffInstance } from './staff.interface.ts';
 import type { StationInstance } from './station.interface.ts';
 import type { UserInstance } from './user.interface.ts';
@@ -11,6 +12,7 @@ export interface TimeEntryAttributes {
   schoolId: string;
   staffId: string;
   stationId: string | null;
+  shiftId: string | null;
   date: string;
   clockInAt: Date;
   clockOutAt: Date | null;
@@ -28,11 +30,12 @@ export interface TimeEntryAttributes {
   updatedAt: Date;
 }
 
-export type TimeEntryCreationAttributes = Optional<TimeEntryAttributes, 'id' | 'stationId' | 'clockOutAt' | 'lateMin' | 'workedMin' | 'overtimeMin' | 'source' | 'manualReason' | 'remarks' | 'autoClosed' | 'confidence' | 'recordedById' | 'createdAt' | 'updatedAt'>;
+export type TimeEntryCreationAttributes = Optional<TimeEntryAttributes, 'id' | 'stationId' | 'shiftId' | 'clockOutAt' | 'lateMin' | 'workedMin' | 'overtimeMin' | 'source' | 'manualReason' | 'remarks' | 'autoClosed' | 'confidence' | 'recordedById' | 'createdAt' | 'updatedAt'>;
 
 export interface TimeEntryInstance extends Model<TimeEntryAttributes, TimeEntryCreationAttributes>, TimeEntryAttributes {
   school?: NonAttribute<SchoolInstance>;
   staff?: NonAttribute<StaffInstance>;
   station?: NonAttribute<StationInstance>;
+  shift?: NonAttribute<ShiftInstance>;
   recordedBy?: NonAttribute<UserInstance>;
 }

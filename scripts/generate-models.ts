@@ -42,6 +42,8 @@ const EXTERNAL_NAVS: Record<string, { as: string; model: string; many: boolean }
   School: [{ as: 'media', model: 'Media', many: true }],
   User: [{ as: 'media', model: 'Media', many: true }],
   Station: [{ as: 'media', model: 'Media', many: true }],
+  // belongsToMany through ClassroomSchedule, declared in schedule.ts (hand-written).
+  Classroom: [{ as: 'schedules', model: 'Schedule', many: true }],
 };
 
 // belongsTo navigation props typed as always present (their FK is NOT NULL and the code relies on them).
@@ -52,6 +54,7 @@ const SMALLINT_CONSTANTS: Record<string, { name: string; file: string; def: stri
   'School.status': { name: 'SchoolStatus', file: 'school-status', def: 'ACTIVE' },
   'Station.status': { name: 'StationStatus', file: 'station-status', def: 'ACTIVE' },
   'User.status': { name: 'UserStatus', file: 'user-status', def: 'INVITED' },
+  'Classroom.status': { name: 'ClassroomStatus', file: 'classroom-status', def: 'ENABLED' },
 };
 
 // App-level enums with no DB enum type behind them (role codes, Schedule.level CHECK); appended to enums.ts.

@@ -27,6 +27,7 @@ export default function defineShift(sequelize: Sequelize) {
     associate(models: Models) {
       Shift.belongsTo(models.School, { foreignKey: 'schoolId', as: 'school' });
       Shift.hasMany(models.Staff, { foreignKey: 'shiftId', as: 'staff' });
+      Shift.hasMany(models.TimeEntry, { foreignKey: 'shiftId', as: 'timeEntries' });
     },
   });
 }
